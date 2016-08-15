@@ -1,13 +1,20 @@
 require "roda"
-require "securerandom"
+
 require "tus/metadata"
+require "tus/storage/filesystem"
+
+require "securerandom"
+require "tmpdir"
 
 module Tus
   class Server < Roda
     SUPPORTED_VERSIONS     = ["1.0.0"]
     SUPPORTED_EXTENSIONS   = ["creation", "termination"]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
-    DEFAULT_BASE_PATH      = "files"
+
+    opts[:base_path] = "files"
+    opts[:storage]   = Tus::Storage::Filesystem.new(Dir.tmpdir)
+    opts[:max_size]  = 1024*1024*1024
 
     plugin :all_verbs
     plugin :slash_path_empty
@@ -199,21 +206,16 @@ module Tus
       request.halt
     end
 
-    def max_size
-      opts[:max_size]
+    def base_path
+      opts[:base_path]
     end
 
     def storage
-      opts[:storage] || filesystem_storage
+      opts[:storage]
     end
 
-    def filesystem_storage
-      require "tus/storage/filesystem"
-      @storage ||= Tus::Storage::Filesystem.new("data")
-    end
-
-    def base_path
-      opts[:base_path] || DEFAULT_BASE_PATH
+    def max_size
+      opts[:max_size]
     end
   end
 end

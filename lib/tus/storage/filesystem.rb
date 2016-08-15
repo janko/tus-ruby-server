@@ -9,7 +9,7 @@ module Tus
       def initialize(directory)
         @directory = Pathname(directory)
 
-        create_directory!
+        create_directory! unless @directory.exist?
       end
 
       def create_file(uid, info = {})

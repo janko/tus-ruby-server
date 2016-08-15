@@ -9,10 +9,6 @@ describe Tus::Server do
     @app = Rack::TestApp.wrap(Rack::Lint.new(@server))
   end
 
-  after do
-    FileUtils.rm_rf("data")
-  end
-
   def options(hash = {})
     default_options.merge(hash) { |key, old, new| old.merge(new) }
   end
@@ -302,11 +298,12 @@ describe Tus::Server do
 
   it "returns Tus-Max-Size header if max size is set" do
     response = @app.options "/files", options
-    refute response.headers.key?("Tus-Max-Size")
+    assert response.headers.key?("Tus-Max-Size")
+    assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
 
-    @server.opts[:max_size] = 10
+    @server.opts.delete(:max_size)
     response = @app.options "/files", options
-    assert_equal "10", response.headers["Tus-Max-Size"]
+    refute response.headers.key?("Tus-Max-Size")
   end
 
   it "handles CORS" do
