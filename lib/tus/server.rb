@@ -5,7 +5,7 @@ require "tus/metadata"
 module Tus
   class Server < Roda
     SUPPORTED_VERSIONS     = ["1.0.0"]
-    SUPPORTED_EXTENSIONS   = ["creation"]
+    SUPPORTED_EXTENSIONS   = ["creation", "termination"]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
     DEFAULT_BASE_PATH      = "files"
 
@@ -110,6 +110,12 @@ module Tus
             storage.update_info(uid, info)
 
             response.headers["Upload-Offset"] = info["Upload-Offset"].to_s
+
+            no_content!
+          end
+
+          r.delete do
+            storage.delete_file(uid)
 
             no_content!
           end

@@ -265,16 +265,39 @@ describe Tus::Server do
     end
   end
 
+  describe "DELETE /files/:uid" do
+    it "returns 204" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      response = @app.delete response.location, options
+      assert_equal 204, response.status
+    end
+
+    it "deletes the upload" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      location = response.location
+      response = @app.delete location, options
+      response = @app.delete location, options
+      assert_equal 404, response.status
+    end
+
+    it "returns 404 if file doesn't exist" do
+      response = @app.delete "/files/unknown", options
+      assert_equal 404, response.status
+    end
+  end
+
   it "returns TUS headers" do
+    extensions = "creation,termination"
+
     response = @app.options "/files", options
     assert_equal "1.0.0",    response.headers["Tus-Resumable"]
     assert_equal "1.0.0",    response.headers["Tus-Version"]
-    assert_equal "creation", response.headers["Tus-Extension"]
+    assert_equal extensions, response.headers["Tus-Extension"]
 
     response = @app.options "/files", options(headers: {"Tus-Resumable" => "0.0.1"})
     assert_equal "1.0.0",    response.headers["Tus-Resumable"]
     assert_equal "1.0.0",    response.headers["Tus-Version"]
-    assert_equal "creation", response.headers["Tus-Extension"]
+    assert_equal extensions, response.headers["Tus-Extension"]
   end
 
   it "returns Tus-Max-Size header if max size is set" do

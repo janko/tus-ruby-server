@@ -29,6 +29,11 @@ module Tus
         file_path(uid).to_s
       end
 
+      def delete_file(uid)
+        file_path(uid).delete
+        info_path(uid).delete
+      end
+
       def read_info(uid)
         data = info_path(uid).binread
         JSON.parse(data)
