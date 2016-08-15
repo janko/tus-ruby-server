@@ -1,0 +1,1 @@
+require "tus/server"
