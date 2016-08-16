@@ -67,6 +67,7 @@ module Tus
 
           r.post do
             validate_upload_length!
+            validate_upload_metadata! if request.headers["Upload-Metadata"]
 
             uid = SecureRandom.hex
             info = {
@@ -173,6 +174,20 @@ module Tus
     def validate_content_length!(content, remaining_length)
       if content.length > remaining_length
         error!(413, "Size of this chunk surpasses Upload-Length")
+      end
+    end
+
+    def validate_upload_metadata!
+      upload_metadata = request.headers["Upload-Metadata"]
+
+      upload_metadata.split(",").each do |string|
+        key, value = string.split(" ")
+
+        error!(400, "Invalid Upload-Metadata header") if key.nil? || value.nil?
+        error!(400, "Invalid Upload-Metadata header") if key.ord > 127
+        error!(400, "Invalid Upload-Metadata header") if key =~ /,| /
+
+        error!(400, "Invalid Upload-Metadata header") if value =~ /[^a-zA-Z0-9+\/=]/
       end
     end
 

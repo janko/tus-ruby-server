@@ -62,6 +62,18 @@ describe Tus::Server do
                   "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")}"}
       )
       assert_equal 201, response.status
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Length"   => "100",
+                  "Upload-Metadata" => "❨╯°□°❩╯︵┻━┻ #{Base64.encode64("nature.jpg")}"}
+      )
+      assert_equal 400, response.status
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Length"   => "100",
+                  "Upload-Metadata" => "filename *****"}
+      )
+      assert_equal 400, response.status
     end
 
     it "returns Upload-Expires header" do
