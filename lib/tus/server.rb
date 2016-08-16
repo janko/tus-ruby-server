@@ -71,7 +71,7 @@ module Tus
 
             uid = SecureRandom.hex
             info = {
-              "Upload-Length"   => request.headers["Upload-Length"],
+              "Upload-Length"   => request.headers["Upload-Length"].to_s,
               "Upload-Offset"   => "0",
               "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
               "Upload-Expires"  => (Time.now + expiration_time).httpdate,
