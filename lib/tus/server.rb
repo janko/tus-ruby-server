@@ -38,6 +38,10 @@ module Tus
       r.on base_path do
         expire_files!
 
+        if request.headers["X-HTTP-Method-Override"]
+          request.env["REQUEST_METHOD"] = request.headers["X-HTTP-Method-Override"]
+        end
+
         r.get ":uid" do |uid|
           not_found! unless storage.file_exists?(uid)
 

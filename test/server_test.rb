@@ -524,4 +524,9 @@ describe Tus::Server do
     response = @app.options "/uploads"
     assert_equal 204, response.status
   end
+
+  it "supports overriding HTTP verb with X-HTTP-Method-Override" do
+    response = @app.get "/files", options(headers: {"X-HTTP-Method-Override" => "OPTIONS"})
+    assert_equal 204, response.status
+  end
 end
