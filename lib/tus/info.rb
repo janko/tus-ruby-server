@@ -16,7 +16,7 @@ module Tus
     end
 
     def to_h
-      @hash
+      @hash.reject { |key, value| value.nil? }
     end
 
     def length
@@ -36,7 +36,11 @@ module Tus
     end
 
     def final_upload?
-      @hash["Upload-Concat"].start_with?("final")
+      @hash["Upload-Concat"].to_s.start_with?("final")
+    end
+
+    def defer_length?
+      @hash["Upload-Defer-Length"] == "1"
     end
 
     def partial_uploads

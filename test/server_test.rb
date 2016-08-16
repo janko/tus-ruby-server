@@ -182,6 +182,31 @@ describe Tus::Server do
       Time.parse(response.headers["Upload-Expires"])
     end
 
+    it "can create upload without Upload-Length with Upload-Defer-Length" do
+      response = @app.post "/files", options(headers: {"Upload-Defer-Length" => "1"})
+      assert_equal 201, response.status
+      file_path = URI(response.location).path
+
+      response = @app.head file_path, options
+      refute response.headers.key?("Upload-Length")
+      assert_equal "1", response.headers["Upload-Defer-Length"]
+
+      response = @app.patch file_path, options(
+        headers: {"Upload-Offset" => "0",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 400, response.status
+
+      response = @app.patch file_path, options(
+        headers: {"Upload-Length" => "100",
+                  "Upload-Offset" => "0",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 204, response.status
+      assert_equal "100", response.headers["Upload-Length"]
+      refute response.headers.key?("Upload-Defer-Length")
+    end
+
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Tus-Resumable" => "0.0.1"})
       assert_equal 412, response.status

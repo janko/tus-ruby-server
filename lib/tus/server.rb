@@ -13,6 +13,7 @@ module Tus
     SUPPORTED_VERSIONS = ["1.0.0"]
     SUPPORTED_EXTENSIONS = [
       "creation",
+      "creation-defer-length",
       "termination",
       "expiration",
       "concatenation",
@@ -64,16 +65,17 @@ module Tus
 
         r.post do
           validate_upload_concat! if request.headers["Upload-Concat"]
-          validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final")
+          validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final") || request.headers["Upload-Defer-Length"] == "1"
           validate_upload_metadata! if request.headers["Upload-Metadata"]
 
           uid = SecureRandom.hex
           info = Info.new(
-            "Upload-Length"   => request.headers["Upload-Length"].to_s,
-            "Upload-Offset"   => "0",
-            "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
-            "Upload-Concat"   => request.headers["Upload-Concat"].to_s,
-            "Upload-Expires"  => (Time.now + expiration_time).httpdate,
+            "Upload-Length"       => request.headers["Upload-Length"],
+            "Upload-Offset"       => "0",
+            "Upload-Defer-Length" => request.headers["Upload-Defer-Length"],
+            "Upload-Metadata"     => request.headers["Upload-Metadata"],
+            "Upload-Concat"       => request.headers["Upload-Concat"],
+            "Upload-Expires"      => (Time.now + expiration_time).httpdate,
           )
 
           storage.create_file(uid, info.to_h)
@@ -149,6 +151,12 @@ module Tus
 
           content = request.body.read
           info = Info.new(storage.read_info(uid))
+
+          if info.defer_length?
+            validate_upload_length!
+            info["Upload-Length"] = request.headers["Upload-Length"]
+            info["Upload-Defer-Length"] = nil
+          end
 
           validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
           validate_upload_offset!(info.offset)
