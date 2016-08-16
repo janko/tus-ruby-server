@@ -10,7 +10,13 @@ require "tmpdir"
 module Tus
   class Server < Roda
     SUPPORTED_VERSIONS     = ["1.0.0"]
-    SUPPORTED_EXTENSIONS   = ["creation", "termination", "expiration"]
+    SUPPORTED_EXTENSIONS   = [
+      "creation",
+      "termination",
+      "expiration",
+      "concatenation",
+      "concatenation-unfinished",
+    ]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
     opts[:base_path]           = "files"
@@ -66,22 +72,37 @@ module Tus
           validate_tus_resumable!
 
           r.post do
-            validate_upload_length!
+            validate_upload_concat! if request.headers["Upload-Concat"]
+            validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final")
             validate_upload_metadata! if request.headers["Upload-Metadata"]
 
             uid = SecureRandom.hex
-            info = {
+            info = Info.new(
               "Upload-Length"   => request.headers["Upload-Length"].to_s,
               "Upload-Offset"   => "0",
               "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
+              "Upload-Concat"   => request.headers["Upload-Concat"].to_s,
               "Upload-Expires"  => (Time.now + expiration_time).httpdate,
-            }
+            )
 
-            storage.create_file(uid, info)
+            storage.create_file(uid, info.to_h)
+
+            if info.final_upload?
+              uids = info.partial_uploads
+              content = uids.inject("") { |s, uid| s << storage.read_file(uid) }
+              storage.patch_file(uid, content)
+
+              info["Upload-Length"] = content.length.to_s
+              info["Upload-Offset"] = content.length.to_s
+
+              storage.update_info(uid, info.to_h)
+
+              uids.each { |uid| storage.delete_file(uid) }
+            end
+
+            response.headers.update(info.to_h)
+
             file_url = "#{request.url.chomp("/")}/#{uid}"
-
-            response.headers.update(info)
-
             created!(file_url)
           end
         end
@@ -98,7 +119,7 @@ module Tus
           r.head do
             info = storage.read_info(uid)
 
-            response.headers.update(info)
+            response.headers.update(info.to_h)
             response.headers["Cache-Control"] = "no-store"
 
             no_content!
@@ -172,9 +193,8 @@ module Tus
     end
 
     def validate_content_length!(content, remaining_length)
-      if content.length > remaining_length
-        error!(413, "Size of this chunk surpasses Upload-Length")
-      end
+      error!(403, "Cannot modify completed upload") if remaining_length == 0
+      error!(413, "Size of this chunk surpasses Upload-Length") if content.length > remaining_length
     end
 
     def validate_upload_metadata!
@@ -188,6 +208,19 @@ module Tus
         error!(400, "Invalid Upload-Metadata header") if key =~ /,| /
 
         error!(400, "Invalid Upload-Metadata header") if value =~ /[^a-zA-Z0-9+\/=]/
+      end
+    end
+
+    def validate_upload_concat!
+      upload_concat = request.headers["Upload-Concat"]
+
+      error!(400, "Invalid Upload-Concat header") if upload_concat !~ /^(partial|final)/
+
+      if upload_concat.start_with?("final")
+        string = upload_concat.split(";").last.to_s
+        string.split(" ").each do |url|
+          error!(400, "Invalid Upload-Concat header") if url !~ %r{^/#{base_path}/\w+$}
+        end
       end
     end
 

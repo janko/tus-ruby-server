@@ -76,6 +76,83 @@ describe Tus::Server do
       assert_equal 400, response.status
     end
 
+    it "handles Upload-Concat header" do
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "1",
+                  "Upload-Concat" => "partial"}
+      )
+      assert_equal 201, response.status
+      assert_equal "partial", response.headers["Upload-Concat"]
+      file_path1 = URI(response.location).path
+      response = @app.patch file_path1, options(
+        input: "a",
+        headers: {"Upload-Offset" => "0",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 204, response.status
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "1",
+                  "Upload-Concat" => "partial"}
+      )
+      assert_equal 201, response.status
+      assert_equal "partial", response.headers["Upload-Concat"]
+      file_path2 = URI(response.location).path
+      response = @app.patch file_path2, options(
+        input: "b",
+        headers: {"Upload-Offset" => "0",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 204, response.status
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Concat" => "final;#{file_path1} #{file_path2}"}
+      )
+      assert_equal 201, response.status
+      assert_equal "final;#{file_path1} #{file_path2}", response.headers["Upload-Concat"]
+      assert_equal "2", response.headers["Upload-Length"]
+      assert_equal "2", response.headers["Upload-Offset"]
+
+      file_path = URI(response.location).path
+      response = @app.get file_path, options
+      assert_equal "ab", response.body_binary
+
+      response = @app.get file_path1, options
+      assert_equal 404, response.status
+      response = @app.get file_path2, options
+      assert_equal 404, response.status
+    end
+
+    it "can concat unfinished uploads" do
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "1",
+                  "Upload-Concat" => "partial"}
+      )
+      file_path1 = URI(response.location).path
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "1",
+                  "Upload-Concat" => "partial"}
+      )
+      file_path2 = URI(response.location).path
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Concat" => "final;#{file_path1} #{file_path2}"}
+      )
+      assert_equal 201, response.status
+      assert_equal "final;#{file_path1} #{file_path2}", response.headers["Upload-Concat"]
+      assert_equal "0", response.headers["Upload-Length"]
+      assert_equal "0", response.headers["Upload-Offset"]
+    end
+
+    it "doesn't allow invalid Upload-Concat header" do
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "0",
+                  "Upload-Concat" => "foo"}
+      )
+      assert_equal 400, response.status
+    end
+
     it "returns Upload-Expires header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       assert response.headers.key?("Upload-Expires")
@@ -241,6 +318,16 @@ describe Tus::Server do
       assert_equal 413, response.status
     end
 
+    it "doesn't allow modifying completed uploads" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "0"})
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
+        headers: {"Upload-Offset" => "0",
+                  "Content-Type" => "application/offset+octet-stream"}
+      )
+      assert_equal 403, response.status
+    end
+
     it "returns Upload-Expires header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
@@ -337,7 +424,7 @@ describe Tus::Server do
   end
 
   it "returns TUS headers" do
-    extensions = "creation,termination,expiration"
+    extensions = "creation,termination,expiration,concatenation,concatenation-unfinished"
 
     response = @app.options "/files", options
     assert_equal "1.0.0",    response.headers["Tus-Resumable"]

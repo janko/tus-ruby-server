@@ -35,6 +35,15 @@ module Tus
       Time.parse(@hash["Upload-Expires"])
     end
 
+    def final_upload?
+      @hash["Upload-Concat"].start_with?("final")
+    end
+
+    def partial_uploads
+      urls = @hash["Upload-Concat"].split(";").last.split(" ")
+      urls.map { |url| url.split("/").last }
+    end
+
     def remaining_length
       length - offset
     end

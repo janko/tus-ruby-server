@@ -21,6 +21,10 @@ module Tus
         file_path(uid).exist?
       end
 
+      def read_file(uid)
+        file_path(uid).binread
+      end
+
       def patch_file(uid, content)
         write(file_path(uid), content, mode: "ab")
       end
