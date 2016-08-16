@@ -21,7 +21,6 @@ module Tus
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :default_headers, "Content-Type" => ""
-    plugin :module_include
     plugin :middleware
 
     route do |r|
