@@ -3,6 +3,7 @@ require "rack/test_app"
 require "fileutils"
 require "base64"
 require "uri"
+require "digest"
 
 describe Tus::Server do
   before do
@@ -29,6 +30,7 @@ describe Tus::Server do
       assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
       assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
       assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
+      assert_equal Tus::Server::SUPPORTED_CHECKSUM_ALGORITHMS.join(","), response.headers["Tus-Checksum-Algorithm"]
     end
 
     it "doesn't return Tus-Max-Size if it's not set" do
@@ -169,6 +171,40 @@ describe Tus::Server do
       Time.parse(response.headers["Upload-Expires"])
     end
 
+    it "handles Upload-Checksum header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "sha1 #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 204, response.status
+    end
+
+    it "fails on invalid Upload-Checksum header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "sha1 foobar",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 460, response.status
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "foobar #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 400, response.status
+    end
+
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Tus-Resumable" => "0.0.1"})
       assert_equal 412, response.status
@@ -184,6 +220,7 @@ describe Tus::Server do
       assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
       assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
       assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
+      assert_equal Tus::Server::SUPPORTED_CHECKSUM_ALGORITHMS.join(","), response.headers["Tus-Checksum-Algorithm"]
     end
 
     it "doesn't return Tus-Max-Size if it's not set" do

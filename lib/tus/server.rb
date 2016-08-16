@@ -3,20 +3,23 @@ require "roda"
 require "tus/storage/filesystem"
 require "tus/info"
 require "tus/expirator"
+require "tus/checksum"
 
 require "securerandom"
 require "tmpdir"
 
 module Tus
   class Server < Roda
-    SUPPORTED_VERSIONS     = ["1.0.0"]
-    SUPPORTED_EXTENSIONS   = [
+    SUPPORTED_VERSIONS = ["1.0.0"]
+    SUPPORTED_EXTENSIONS = [
       "creation",
       "termination",
       "expiration",
       "concatenation",
       "concatenation-unfinished",
+      "checksum",
     ]
+    SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
     opts[:base_path]           = "files"
@@ -67,6 +70,7 @@ module Tus
               "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
               "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
               "Tus-Max-Size"           => max_size.to_s,
+              "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
             )
 
             no_content!
@@ -118,6 +122,7 @@ module Tus
               "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
               "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
               "Tus-Max-Size"           => max_size.to_s,
+              "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
             )
 
             no_content!
@@ -141,6 +146,7 @@ module Tus
             content = request.body.read
             info = Info.new(storage.read_info(uid))
 
+            validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
             validate_upload_offset!(info.offset)
             validate_content_length!(content, info.remaining_length)
 
@@ -235,6 +241,17 @@ module Tus
         string.split(" ").each do |url|
           error!(400, "Invalid Upload-Concat header") if url !~ %r{^/#{base_path}/\w+$}
         end
+      end
+    end
+
+    def validate_upload_checksum!(content)
+      algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
+
+      error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
+      error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
+
+      unless Checksum.new(algorithm).match?(checksum, content)
+        error!(460, "Checksum from Upload-Checksum header doesn't match generated")
       end
     end
 
