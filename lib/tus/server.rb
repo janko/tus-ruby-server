@@ -57,15 +57,18 @@ module Tus
 
         response.headers.update(
           "Tus-Resumable" => SUPPORTED_VERSIONS.first,
-          "Tus-Version"   => SUPPORTED_VERSIONS.join(","),
-          "Tus-Extension" => SUPPORTED_EXTENSIONS.join(","),
-          "Tus-Max-Size"  => max_size.to_s,
         )
 
         handle_cors!
 
         r.is do
           r.options do
+            response.headers.update(
+              "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
+              "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
+              "Tus-Max-Size"           => max_size.to_s,
+            )
+
             no_content!
           end
 
@@ -108,13 +111,20 @@ module Tus
         end
 
         r.is ":uid" do |uid|
-          not_found! unless storage.file_exists?(uid)
-
           r.options do
+            not_found! unless storage.file_exists?(uid)
+
+            response.headers.update(
+              "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
+              "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
+              "Tus-Max-Size"           => max_size.to_s,
+            )
+
             no_content!
           end
 
           validate_tus_resumable!
+          not_found! unless storage.file_exists?(uid)
 
           r.head do
             info = storage.read_info(uid)
@@ -165,7 +175,11 @@ module Tus
 
     def validate_tus_resumable!
       client_version = request.headers["Tus-Resumable"]
-      error!(412, "Unsupported version") unless SUPPORTED_VERSIONS.include?(client_version)
+
+      unless SUPPORTED_VERSIONS.include?(client_version)
+        response.headers["Tus-Version"] = SUPPORTED_VERSIONS.join(",")
+        error!(412, "Unsupported version")
+      end
     end
 
     def validate_upload_length!

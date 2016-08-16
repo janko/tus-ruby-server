@@ -26,6 +26,16 @@ describe Tus::Server do
     it "returns 204" do
       response = @app.options "/files", options
       assert_equal 204, response.status
+      assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
+      assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
+      assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
+    end
+
+    it "doesn't return Tus-Max-Size if it's not set" do
+      @server.opts[:max_size] = nil
+      response = @app.options "/files", options
+      assert_equal 204, response.status
+      refute response.headers.key?("Tus-Max-Size")
     end
 
     it "doesn't require Tus-Resumable header" do
@@ -171,6 +181,18 @@ describe Tus::Server do
       file_path = URI(response.location).path
       response = @app.options file_path, options
       assert_equal 204, response.status
+      assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
+      assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
+      assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
+    end
+
+    it "doesn't return Tus-Max-Size if it's not set" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+      @server.opts[:max_size] = nil
+      response = @app.options file_path, options
+      assert_equal 204, response.status
+      refute response.headers.key?("Tus-Max-Size")
     end
 
     it "returns 404 if file is missing" do
@@ -423,28 +445,12 @@ describe Tus::Server do
     end
   end
 
-  it "returns TUS headers" do
-    extensions = "creation,termination,expiration,concatenation,concatenation-unfinished"
-
-    response = @app.options "/files", options
-    assert_equal "1.0.0",    response.headers["Tus-Resumable"]
-    assert_equal "1.0.0",    response.headers["Tus-Version"]
-    assert_equal extensions, response.headers["Tus-Extension"]
-
-    response = @app.options "/files", options(headers: {"Tus-Resumable" => "0.0.1"})
-    assert_equal "1.0.0",    response.headers["Tus-Resumable"]
-    assert_equal "1.0.0",    response.headers["Tus-Version"]
-    assert_equal extensions, response.headers["Tus-Extension"]
-  end
-
-  it "returns Tus-Max-Size header if max size is set" do
-    response = @app.options "/files", options
-    assert response.headers.key?("Tus-Max-Size")
-    assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
-
-    @server.opts.delete(:max_size)
-    response = @app.options "/files", options
-    refute response.headers.key?("Tus-Max-Size")
+  it "includes Tus-Version when invalid Tus-Resumable was given" do
+    response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+    file_path = URI(response.location).path
+    response = @app.head file_path, options(headers: {"Tus-Resumable" => "0.0.1"})
+    assert_equal 412, response.status
+    assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
   end
 
   it "handles CORS" do
