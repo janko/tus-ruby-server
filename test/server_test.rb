@@ -2,6 +2,7 @@ require "test_helper"
 require "rack/test_app"
 require "fileutils"
 require "base64"
+require "uri"
 
 describe Tus::Server do
   before do
@@ -37,7 +38,7 @@ describe Tus::Server do
     it "returns 201" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       assert_equal 201, response.status
-      assert_match %r{^/files/\w+$}, response.location
+      assert_match %r{^http://localhost/files/\w+$}, response.location
     end
 
     it "requires Upload-Length header" do
@@ -78,7 +79,8 @@ describe Tus::Server do
   describe "OPTIONS /files/:uid" do
     it "returns 204" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.options response.location, options
+      file_path = URI(response.location).path
+      response = @app.options file_path, options
       assert_equal 204, response.status
     end
 
@@ -89,7 +91,8 @@ describe Tus::Server do
 
     it "doesn't require Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.options response.location, options(headers: {"Tus-Resumable" => ""})
+      file_path = URI(response.location).path
+      response = @app.options file_path, options(headers: {"Tus-Resumable" => ""})
       assert_equal 204, response.status
     end
   end
@@ -97,7 +100,8 @@ describe Tus::Server do
   describe "HEAD /files/:uid" do
     it "returns 204" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.head response.location, options
+      file_path = URI(response.location).path
+      response = @app.head file_path, options
       assert_equal 204, response.status
       assert_equal "100", response.headers["Upload-Length"]
       assert_equal "0", response.headers["Upload-Offset"]
@@ -107,27 +111,31 @@ describe Tus::Server do
       response = @app.post "/files", options(
         headers: {"Upload-Length" => "100"}
       )
-      response = @app.head response.location, options
+      file_path = URI(response.location).path
+      response = @app.head file_path, options
       refute response.headers.key?("Upload-Metadata")
 
       response = @app.post "/files", options(
         headers: {"Upload-Length"   => "100",
                   "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")}"}
       )
-      response = @app.head response.location, options
+      file_path = URI(response.location).path
+      response = @app.head file_path, options
       assert_equal "filename #{Base64.encode64("nature.jpg")}", response.headers["Upload-Metadata"]
     end
 
     it "returns Upload-Expires header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.head response.location, options
+      file_path = URI(response.location).path
+      response = @app.head file_path, options
       assert response.headers.key?("Upload-Expires")
       Time.parse(response.headers["Upload-Expires"])
     end
 
     it "prevents caching" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.head response.location, options
+      file_path = URI(response.location).path
+      response = @app.head file_path, options
       assert_equal "no-store", response.headers["Cache-Control"]
     end
 
@@ -138,7 +146,8 @@ describe Tus::Server do
 
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.head response.location, options(headers: {"Tus-Resumable" => ""})
+      file_path = URI(response.location).path
+      response = @app.head file_path, options(headers: {"Tus-Resumable" => ""})
       assert_equal 412, response.status
     end
   end
@@ -146,7 +155,8 @@ describe Tus::Server do
   describe "PATCH /files/:uid" do
     it "returns 204" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.patch response.location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         input: "a" * 5,
         headers: {"Upload-Offset"  => "0",
                   "Content-Type"   => "application/offset+octet-stream"},
@@ -157,7 +167,8 @@ describe Tus::Server do
 
     it "requires Content-Type to be application/offset+octet-stream" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.patch response.location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset"  => "0",
                   "Content-Type"   => "image/jpeg"},
       )
@@ -166,27 +177,27 @@ describe Tus::Server do
 
     it "requires Upload-Offset to match current offset" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      location = response.location
+      file_path = URI(response.location).path
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset" => "",
                   "Content-Type"  => "application/offset+octet-stream"},
       )
       assert_equal 400, response.status
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset" => "foo",
                   "Content-Type"  => "application/offset+octet-stream"},
       )
       assert_equal 400, response.status
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset" => "-1",
                   "Content-Type"  => "application/offset+octet-stream"},
       )
       assert_equal 400, response.status
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset"  => "5",
                   "Content-Type"   => "application/offset+octet-stream"},
       )
@@ -195,22 +206,22 @@ describe Tus::Server do
 
     it "doesn't allow body to surpass Upload-Length" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      location = response.location
+      file_path = URI(response.location).path
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         input: "a" * 150,
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream"},
       )
       assert_equal 413, response.status
 
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         input: "a" * 50,
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream"},
       )
       assert_equal 204, response.status
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         input: "a" * 100,
         headers: {"Upload-Offset" => "50",
                   "Content-Type"  => "application/offset+octet-stream"},
@@ -220,7 +231,8 @@ describe Tus::Server do
 
     it "returns Upload-Expires header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.patch response.location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         input: "a" * 5,
         headers: {"Upload-Offset"  => "0",
                   "Content-Type"   => "application/offset+octet-stream"},
@@ -239,7 +251,8 @@ describe Tus::Server do
 
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.patch response.location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream",
                   "Tus-Resumable" => ""},
@@ -254,18 +267,18 @@ describe Tus::Server do
         headers: {"Upload-Length" => "100",
                   "Upload-Metadata" => "filename #{Base64.encode64("image.jpg")},content_type #{Base64.encode64("image/jpeg")}"}
       )
-      location = response.location
-      response = @app.patch location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         input: "a" * 50,
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream"}
       )
-      response = @app.patch location, options(
+      response = @app.patch file_path, options(
         input: "a" * 50,
         headers: {"Upload-Offset" => "50",
                   "Content-Type"  => "application/offset+octet-stream"}
       )
-      response = @app.get location
+      response = @app.get file_path
       assert_equal "a" * 100, response.body_binary
       assert_equal "image/jpeg", response.headers["Content-Type"]
       assert_equal "attachment; filename=\"image.jpg\"", response.headers["Content-Disposition"]
@@ -273,13 +286,13 @@ describe Tus::Server do
 
     it "works without metadata" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      location = response.location
-      response = @app.patch location, options(
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
         input: "a" * 100,
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream"}
       )
-      response = @app.get location
+      response = @app.get file_path
       assert_equal "a" * 100, response.body_binary
     end
 
@@ -292,15 +305,16 @@ describe Tus::Server do
   describe "DELETE /files/:uid" do
     it "returns 204" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      response = @app.delete response.location, options
+      file_path = URI(response.location).path
+      response = @app.delete file_path, options
       assert_equal 204, response.status
     end
 
     it "deletes the upload" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      location = response.location
-      response = @app.delete location, options
-      response = @app.delete location, options
+      file_path = URI(response.location).path
+      response = @app.delete file_path, options
+      response = @app.delete file_path, options
       assert_equal 404, response.status
     end
 
@@ -353,7 +367,8 @@ describe Tus::Server do
     @server.opts[:expiration_time]     = 0
     @server.opts[:expiration_interval] = 0
     response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-    response = @app.head response.location, options
+    file_path = URI(response.location).path
+    response = @app.head file_path, options
     assert_equal 404, response.status
   end
 

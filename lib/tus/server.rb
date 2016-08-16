@@ -77,7 +77,7 @@ module Tus
             }
 
             storage.create_file(uid, info)
-            file_url = "/#{base_path}/#{uid}"
+            file_url = "#{request.url.chomp("/")}/#{uid}"
 
             response.headers.update(info)
 
