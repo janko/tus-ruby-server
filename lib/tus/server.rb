@@ -1,7 +1,7 @@
 require "roda"
 
 require "tus/storage/filesystem"
-require "tus/metadata"
+require "tus/info"
 require "tus/expirator"
 
 require "securerandom"
@@ -33,7 +33,7 @@ module Tus
           not_found! unless storage.file_exists?(uid)
 
           path = storage.download_file(uid)
-          info = storage.read_info(uid)
+          info = Info.new(storage.read_info(uid))
 
           file = Rack::File.new(File.dirname(path))
 
@@ -42,7 +42,7 @@ module Tus
           response.status = result[0]
           response.headers.update(result[1])
 
-          metadata = info["Upload-Metadata"] || {}
+          metadata = info.metadata
           response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
 
@@ -70,18 +70,16 @@ module Tus
 
             uid = SecureRandom.hex
             info = {
-              "Upload-Length"   => request.headers["Upload-Length"].to_i,
-              "Upload-Offset"   => 0,
-              "Upload-Metadata" => Metadata.parse(request.headers["Upload-Metadata"].to_s),
+              "Upload-Length"   => request.headers["Upload-Length"],
+              "Upload-Offset"   => "0",
+              "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
               "Upload-Expires"  => (Time.now + expiration_time).httpdate,
             }
 
             storage.create_file(uid, info)
             file_url = "/#{base_path}/#{uid}"
 
-            response.headers.update(
-              "Upload-Expires" => info["Upload-Expires"],
-            )
+            response.headers.update(info)
 
             created!(file_url)
           end
@@ -99,13 +97,7 @@ module Tus
           r.head do
             info = storage.read_info(uid)
 
-            response.headers.update(
-              "Upload-Length"   => info["Upload-Length"].to_s,
-              "Upload-Offset"   => info["Upload-Offset"].to_s,
-              "Upload-Metadata" => Metadata.serialize(info["Upload-Metadata"]),
-              "Upload-Expires"  => info["Upload-Expires"],
-            )
-
+            response.headers.update(info)
             response.headers["Cache-Control"] = "no-store"
 
             no_content!
@@ -115,20 +107,17 @@ module Tus
             validate_content_type!
 
             content = request.body.read
-            info = storage.read_info(uid)
+            info = Info.new(storage.read_info(uid))
 
-            validate_upload_offset!(info["Upload-Offset"])
-            validate_content_length!(content, info["Upload-Length"] - info["Upload-Offset"])
+            validate_upload_offset!(info.offset)
+            validate_content_length!(content, info.remaining_length)
 
             storage.patch_file(uid, content)
 
-            info["Upload-Offset"] = info["Upload-Offset"] + content.length
-            storage.update_info(uid, info)
+            info["Upload-Offset"] = (info.offset + content.length).to_s
+            storage.update_info(uid, info.to_h)
 
-            response.headers.update(
-              "Upload-Offset"  => info["Upload-Offset"].to_s,
-              "Upload-Expires" => info["Upload-Expires"],
-            )
+            response.headers.update(info.to_h)
 
             no_content!
           end

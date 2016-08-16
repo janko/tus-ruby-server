@@ -1,5 +1,4 @@
 require "tmpdir"
-require "time"
 
 module Tus
   class Expirator
@@ -27,9 +26,8 @@ module Tus
 
     def _expire_files!
       storage.list_files.each do |uid|
-        info = storage.read_info(uid)
-        expires_at = Time.parse(info["Upload-Expires"])
-        storage.delete_file(uid) if Time.now > expires_at
+        info = Info.new(storage.read_info(uid))
+        storage.delete_file(uid) if Time.now > info.expires
       end
 
       update_last_expiration
