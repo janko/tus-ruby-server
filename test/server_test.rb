@@ -9,6 +9,10 @@ describe Tus::Server do
     @app = Rack::TestApp.wrap(Rack::Lint.new(@server))
   end
 
+  after do
+    FileUtils.rm_rf("data")
+  end
+
   def options(hash = {})
     default_options.merge(hash) { |key, old, new| old.merge(new) }
   end
@@ -59,6 +63,12 @@ describe Tus::Server do
       assert_equal 201, response.status
     end
 
+    it "returns Upload-Expires header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      assert response.headers.key?("Upload-Expires")
+      Time.parse(response.headers["Upload-Expires"])
+    end
+
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Tus-Resumable" => "0.0.1"})
       assert_equal 412, response.status
@@ -106,6 +116,13 @@ describe Tus::Server do
       )
       response = @app.head response.location, options
       assert_equal "filename #{Base64.encode64("nature.jpg")}", response.headers["Upload-Metadata"]
+    end
+
+    it "returns Upload-Expires header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      response = @app.head response.location, options
+      assert response.headers.key?("Upload-Expires")
+      Time.parse(response.headers["Upload-Expires"])
     end
 
     it "prevents caching" do
@@ -201,6 +218,17 @@ describe Tus::Server do
       assert_equal 413, response.status
     end
 
+    it "returns Upload-Expires header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      response = @app.patch response.location, options(
+        input: "a" * 5,
+        headers: {"Upload-Offset"  => "0",
+                  "Content-Type"   => "application/offset+octet-stream"},
+      )
+      assert response.headers.key?("Upload-Expires")
+      Time.parse(response.headers["Upload-Expires"])
+    end
+
     it "returns 404 when file is missing" do
       response = @app.patch "/files/unknown", options(
         headers: {"Upload-Offset" => "0",
@@ -283,7 +311,7 @@ describe Tus::Server do
   end
 
   it "returns TUS headers" do
-    extensions = "creation,termination"
+    extensions = "creation,termination,expiration"
 
     response = @app.options "/files", options
     assert_equal "1.0.0",    response.headers["Tus-Resumable"]
@@ -319,6 +347,14 @@ describe Tus::Server do
 
     response = @app.head "/files", options
     refute response.headers.key?("Access-Control-Allow-Origin")
+  end
+
+  it "expires files" do
+    @server.opts[:expiration_time]     = 0
+    @server.opts[:expiration_interval] = 0
+    response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+    response = @app.head response.location, options
+    assert_equal 404, response.status
   end
 
   it "accepts a trailing slash" do

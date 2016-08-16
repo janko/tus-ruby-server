@@ -1,7 +1,8 @@
 require "roda"
 
-require "tus/metadata"
 require "tus/storage/filesystem"
+require "tus/metadata"
+require "tus/expirator"
 
 require "securerandom"
 require "tmpdir"
@@ -9,12 +10,13 @@ require "tmpdir"
 module Tus
   class Server < Roda
     SUPPORTED_VERSIONS     = ["1.0.0"]
-    SUPPORTED_EXTENSIONS   = ["creation", "termination"]
+    SUPPORTED_EXTENSIONS   = ["creation", "termination", "expiration"]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
-    opts[:base_path] = "files"
-    opts[:storage]   = Tus::Storage::Filesystem.new(Dir.tmpdir)
-    opts[:max_size]  = 1024*1024*1024
+    opts[:base_path]           = "files"
+    opts[:max_size]            = 1024*1024*1024
+    opts[:expiration_time]     = 7*24*60*60
+    opts[:expiration_interval] = 60*60
 
     plugin :all_verbs
     plugin :slash_path_empty
@@ -25,6 +27,8 @@ module Tus
 
     route do |r|
       r.on base_path do
+        expire_files!
+
         r.get ":uid" do |uid|
           not_found! unless storage.file_exists?(uid)
 
@@ -69,10 +73,15 @@ module Tus
               "Upload-Length"   => request.headers["Upload-Length"].to_i,
               "Upload-Offset"   => 0,
               "Upload-Metadata" => Metadata.parse(request.headers["Upload-Metadata"].to_s),
+              "Upload-Expires"  => (Time.now + expiration_time).httpdate,
             }
 
             storage.create_file(uid, info)
             file_url = "/#{base_path}/#{uid}"
+
+            response.headers.update(
+              "Upload-Expires" => info["Upload-Expires"],
+            )
 
             created!(file_url)
           end
@@ -94,6 +103,7 @@ module Tus
               "Upload-Length"   => info["Upload-Length"].to_s,
               "Upload-Offset"   => info["Upload-Offset"].to_s,
               "Upload-Metadata" => Metadata.serialize(info["Upload-Metadata"]),
+              "Upload-Expires"  => info["Upload-Expires"],
             )
 
             response.headers["Cache-Control"] = "no-store"
@@ -115,7 +125,10 @@ module Tus
             info["Upload-Offset"] = info["Upload-Offset"] + content.length
             storage.update_info(uid, info)
 
-            response.headers["Upload-Offset"] = info["Upload-Offset"].to_s
+            response.headers.update(
+              "Upload-Offset"  => info["Upload-Offset"].to_s,
+              "Upload-Expires" => info["Upload-Expires"],
+            )
 
             no_content!
           end
@@ -127,6 +140,11 @@ module Tus
           end
         end
       end
+    end
+
+    def expire_files!
+      expirator = Expirator.new(storage, interval: expiration_interval)
+      expirator.expire_files!
     end
 
     def validate_content_type!
@@ -210,11 +228,19 @@ module Tus
     end
 
     def storage
-      opts[:storage]
+      opts[:storage] || Tus::Storage::Filesystem.new("data")
     end
 
     def max_size
       opts[:max_size]
+    end
+
+    def expiration_time
+      opts[:expiration_time]
+    end
+
+    def expiration_interval
+      opts[:expiration_interval]
     end
   end
 end

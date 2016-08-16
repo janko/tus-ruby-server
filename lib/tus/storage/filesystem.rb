@@ -13,8 +13,8 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        file_path(uid).write("")
-        info_path(uid).write(info.to_json)
+        write(file_path(uid), "")
+        write(info_path(uid), info.to_json)
       end
 
       def file_exists?(uid)
@@ -22,7 +22,7 @@ module Tus
       end
 
       def patch_file(uid, content)
-        file_path(uid).write(content, mode: "ab")
+        write(file_path(uid), content, mode: "ab")
       end
 
       def download_file(uid)
@@ -40,10 +40,22 @@ module Tus
       end
 
       def update_info(uid, info)
-        info_path(uid).write(info.to_json)
+        write(info_path(uid), info.to_json)
+      end
+
+      def list_files
+        paths = Dir[directory.join("*.file")]
+        paths.map { |path| File.basename(path, ".file") }
       end
 
       private
+
+      def write(pathname, content, mode: "wb")
+        pathname.open(mode) do |file|
+          file.sync = true
+          file.write(content)
+        end
+      end
 
       def file_path(uid)
         directory.join("#{uid}.file")
