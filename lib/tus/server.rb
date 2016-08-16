@@ -73,7 +73,7 @@ module Tus
             }
 
             storage.create_file(uid, info)
-            file_url = "/files/#{uid}"
+            file_url = "/#{base_path}/#{uid}"
 
             created!(file_url)
           end
