@@ -74,7 +74,13 @@ describe Tus::Server do
                   "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")}"}
       )
       assert_equal 201, response.status
+      file_path = URI(response.location).path
 
+      response = @app.head file_path, options
+      assert_equal "filename #{Base64.encode64("nature.jpg")}", response.headers["Upload-Metadata"]
+    end
+
+    it "doesn't accept invalid Upload-Metadata header" do
       response = @app.post "/files", options(
         headers: {"Upload-Length"   => "100",
                   "Upload-Metadata" => "❨╯°□°❩╯︵┻━┻ #{Base64.encode64("nature.jpg")}"}
@@ -165,44 +171,15 @@ describe Tus::Server do
       assert_equal 400, response.status
     end
 
-    it "returns Upload-Expires header" do
+    it "creates Upload-Expires header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       assert response.headers.key?("Upload-Expires")
       Time.parse(response.headers["Upload-Expires"])
-    end
-
-    it "handles Upload-Checksum header" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
 
-      response = @app.patch file_path, options(
-        input: "a" * 50,
-        headers: {"Upload-Offset"   => "0",
-                  "Upload-Checksum" => "sha1 #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
-                  "Content-Type"    => "application/offset+octet-stream"}
-      )
-      assert_equal 204, response.status
-    end
-
-    it "fails on invalid Upload-Checksum header" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      file_path = URI(response.location).path
-
-      response = @app.patch file_path, options(
-        input: "a" * 50,
-        headers: {"Upload-Offset"   => "0",
-                  "Upload-Checksum" => "sha1 foobar",
-                  "Content-Type"    => "application/offset+octet-stream"}
-      )
-      assert_equal 460, response.status
-
-      response = @app.patch file_path, options(
-        input: "a" * 50,
-        headers: {"Upload-Offset"   => "0",
-                  "Upload-Checksum" => "foobar #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
-                  "Content-Type"    => "application/offset+octet-stream"}
-      )
-      assert_equal 400, response.status
+      response = @app.head file_path, options
+      assert response.headers.key?("Upload-Expires")
+      Time.parse(response.headers["Upload-Expires"])
     end
 
     it "requires Tus-Resumable header" do
@@ -253,31 +230,6 @@ describe Tus::Server do
       assert_equal 204, response.status
       assert_equal "100", response.headers["Upload-Length"]
       assert_equal "0", response.headers["Upload-Offset"]
-    end
-
-    it "returns Upload-Metadata if it was set" do
-      response = @app.post "/files", options(
-        headers: {"Upload-Length" => "100"}
-      )
-      file_path = URI(response.location).path
-      response = @app.head file_path, options
-      refute response.headers.key?("Upload-Metadata")
-
-      response = @app.post "/files", options(
-        headers: {"Upload-Length"   => "100",
-                  "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")}"}
-      )
-      file_path = URI(response.location).path
-      response = @app.head file_path, options
-      assert_equal "filename #{Base64.encode64("nature.jpg")}", response.headers["Upload-Metadata"]
-    end
-
-    it "returns Upload-Expires header" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      file_path = URI(response.location).path
-      response = @app.head file_path, options
-      assert response.headers.key?("Upload-Expires")
-      Time.parse(response.headers["Upload-Expires"])
     end
 
     it "prevents caching" do
@@ -387,16 +339,38 @@ describe Tus::Server do
       assert_equal 403, response.status
     end
 
-    it "returns Upload-Expires header" do
+    it "handles Upload-Checksum header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
+
       response = @app.patch file_path, options(
-        input: "a" * 5,
-        headers: {"Upload-Offset"  => "0",
-                  "Content-Type"   => "application/offset+octet-stream"},
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "sha1 #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
+                  "Content-Type"    => "application/offset+octet-stream"}
       )
-      assert response.headers.key?("Upload-Expires")
-      Time.parse(response.headers["Upload-Expires"])
+      assert_equal 204, response.status
+    end
+
+    it "fails on invalid Upload-Checksum header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "sha1 foobar",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 460, response.status
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "0",
+                  "Upload-Checksum" => "foobar #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 400, response.status
     end
 
     it "returns 404 when file is missing" do
