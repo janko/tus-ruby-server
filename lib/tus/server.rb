@@ -32,17 +32,87 @@ module Tus
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :default_headers, "Content-Type" => ""
+    plugin :not_allowed
     plugin :middleware
 
     route do |r|
-      r.on base_path do
-        expire_files!
+      expire_files!
 
-        if request.headers["X-HTTP-Method-Override"]
-          request.env["REQUEST_METHOD"] = request.headers["X-HTTP-Method-Override"]
+      if request.headers["X-HTTP-Method-Override"]
+        request.env["REQUEST_METHOD"] = request.headers["X-HTTP-Method-Override"]
+      end
+
+      response.headers.update(
+        "Tus-Resumable" => SUPPORTED_VERSIONS.first,
+      )
+
+      handle_cors!
+
+      r.is base_path do
+        r.options do
+          response.headers.update(
+            "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
+            "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
+            "Tus-Max-Size"           => max_size.to_s,
+            "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
+          )
+
+          no_content!
         end
 
-        r.get ":uid" do |uid|
+        validate_tus_resumable!
+
+        r.post do
+          validate_upload_concat! if request.headers["Upload-Concat"]
+          validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final")
+          validate_upload_metadata! if request.headers["Upload-Metadata"]
+
+          uid = SecureRandom.hex
+          info = Info.new(
+            "Upload-Length"   => request.headers["Upload-Length"].to_s,
+            "Upload-Offset"   => "0",
+            "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
+            "Upload-Concat"   => request.headers["Upload-Concat"].to_s,
+            "Upload-Expires"  => (Time.now + expiration_time).httpdate,
+          )
+
+          storage.create_file(uid, info.to_h)
+
+          if info.final_upload?
+            uids = info.partial_uploads
+            content = uids.inject("") { |s, uid| s << storage.read_file(uid) }
+            storage.patch_file(uid, content)
+
+            info["Upload-Length"] = content.length.to_s
+            info["Upload-Offset"] = content.length.to_s
+
+            storage.update_info(uid, info.to_h)
+
+            uids.each { |uid| storage.delete_file(uid) }
+          end
+
+          response.headers.update(info.to_h)
+
+          file_url = "#{request.url.chomp("/")}/#{uid}"
+          created!(file_url)
+        end
+      end
+
+      r.is "#{base_path}/:uid" do |uid|
+        r.options do
+          not_found! unless storage.file_exists?(uid)
+
+          response.headers.update(
+            "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
+            "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
+            "Tus-Max-Size"           => max_size.to_s,
+            "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
+          )
+
+          no_content!
+        end
+
+        r.get do
           not_found! unless storage.file_exists?(uid)
 
           path = storage.download_file(uid)
@@ -62,113 +132,42 @@ module Tus
           request.halt response.finish_with_body(result[2])
         end
 
-        response.headers.update(
-          "Tus-Resumable" => SUPPORTED_VERSIONS.first,
-        )
+        validate_tus_resumable!
+        not_found! unless storage.file_exists?(uid)
 
-        handle_cors!
+        r.head do
+          info = storage.read_info(uid)
 
-        r.is do
-          r.options do
-            response.headers.update(
-              "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
-              "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
-              "Tus-Max-Size"           => max_size.to_s,
-              "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
-            )
+          response.headers.update(info.to_h)
+          response.headers["Cache-Control"] = "no-store"
 
-            no_content!
-          end
-
-          validate_tus_resumable!
-
-          r.post do
-            validate_upload_concat! if request.headers["Upload-Concat"]
-            validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final")
-            validate_upload_metadata! if request.headers["Upload-Metadata"]
-
-            uid = SecureRandom.hex
-            info = Info.new(
-              "Upload-Length"   => request.headers["Upload-Length"].to_s,
-              "Upload-Offset"   => "0",
-              "Upload-Metadata" => request.headers["Upload-Metadata"].to_s,
-              "Upload-Concat"   => request.headers["Upload-Concat"].to_s,
-              "Upload-Expires"  => (Time.now + expiration_time).httpdate,
-            )
-
-            storage.create_file(uid, info.to_h)
-
-            if info.final_upload?
-              uids = info.partial_uploads
-              content = uids.inject("") { |s, uid| s << storage.read_file(uid) }
-              storage.patch_file(uid, content)
-
-              info["Upload-Length"] = content.length.to_s
-              info["Upload-Offset"] = content.length.to_s
-
-              storage.update_info(uid, info.to_h)
-
-              uids.each { |uid| storage.delete_file(uid) }
-            end
-
-            response.headers.update(info.to_h)
-
-            file_url = "#{request.url.chomp("/")}/#{uid}"
-            created!(file_url)
-          end
+          no_content!
         end
 
-        r.is ":uid" do |uid|
-          r.options do
-            not_found! unless storage.file_exists?(uid)
+        r.patch do
+          validate_content_type!
 
-            response.headers.update(
-              "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
-              "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
-              "Tus-Max-Size"           => max_size.to_s,
-              "Tus-Checksum-Algorithm" => SUPPORTED_CHECKSUM_ALGORITHMS.join(","),
-            )
+          content = request.body.read
+          info = Info.new(storage.read_info(uid))
 
-            no_content!
-          end
+          validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
+          validate_upload_offset!(info.offset)
+          validate_content_length!(content, info.remaining_length)
 
-          validate_tus_resumable!
-          not_found! unless storage.file_exists?(uid)
+          storage.patch_file(uid, content)
 
-          r.head do
-            info = storage.read_info(uid)
+          info["Upload-Offset"] = (info.offset + content.length).to_s
+          storage.update_info(uid, info.to_h)
 
-            response.headers.update(info.to_h)
-            response.headers["Cache-Control"] = "no-store"
+          response.headers.update(info.to_h)
 
-            no_content!
-          end
+          no_content!
+        end
 
-          r.patch do
-            validate_content_type!
+        r.delete do
+          storage.delete_file(uid)
 
-            content = request.body.read
-            info = Info.new(storage.read_info(uid))
-
-            validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
-            validate_upload_offset!(info.offset)
-            validate_content_length!(content, info.remaining_length)
-
-            storage.patch_file(uid, content)
-
-            info["Upload-Offset"] = (info.offset + content.length).to_s
-            storage.update_info(uid, info.to_h)
-
-            response.headers.update(info.to_h)
-
-            no_content!
-          end
-
-          r.delete do
-            storage.delete_file(uid)
-
-            no_content!
-          end
+          no_content!
         end
       end
     end

@@ -529,4 +529,14 @@ describe Tus::Server do
     response = @app.get "/files", options(headers: {"X-HTTP-Method-Override" => "OPTIONS"})
     assert_equal 204, response.status
   end
+
+  it "returns 405 method allowed" do
+    response = @app.patch "/files", options
+    assert_equal 405, response.status
+
+    response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+    file_path = URI(response.location).path
+    response = @app.post file_path, options
+    assert_equal 405, response.status
+  end
 end
