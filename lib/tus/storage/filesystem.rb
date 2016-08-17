@@ -18,7 +18,7 @@ module Tus
       end
 
       def file_exists?(uid)
-        file_path(uid).exist?
+        file_path(uid).exist? && info_path(uid).exist?
       end
 
       def read_file(uid)

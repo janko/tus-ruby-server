@@ -1,4 +1,5 @@
-require "tmpdir"
+require "tus/info"
+require "time"
 
 module Tus
   class Expirator
@@ -10,11 +11,15 @@ module Tus
     end
 
     def expire_files!
-      begin
-        _expire_files! if expiration_due?
-      rescue => error
-        warn "#{error.backtrace.first}: #{error.message} (#{error.class})"
-        error.backtrace[1..-1].each { |line| warn line }
+      return unless expiration_due?
+      update_last_expiration
+
+      Thread.new do
+        thread = Thread.current
+        thread.abort_on_exception = false
+        thread.report_on_exception = true if thread.respond_to?(:report_on_exception) # Ruby 2.4
+
+        _expire_files!
       end
     end
 
@@ -26,27 +31,28 @@ module Tus
 
     def _expire_files!
       storage.list_files.each do |uid|
-        info = Info.new(storage.read_info(uid))
-        storage.delete_file(uid) if Time.now > info.expires
+        next if uid == "expirator"
+        begin
+          info = Info.new(storage.read_info(uid))
+          storage.delete_file(uid) if Time.now > info.expires
+        rescue
+        end
       end
-
-      update_last_expiration
     end
 
     def last_expiration
-      if File.exist?(last_expiration_path)
-        File.mtime(last_expiration_path)
-      else
-        Time.new(0)
-      end
+      info = storage.read_info("expirator")
+      Time.parse(info["Last-Expiration"])
+    rescue
+      Time.new(0)
     end
 
     def update_last_expiration
-      FileUtils.touch(last_expiration_path)
-    end
-
-    def last_expiration_path
-      File.join(Dir.tmpdir, "tus-last_expiration")
+      if storage.file_exists?("expirator")
+        storage.update_info("expirator", {"Last-Expiration" => Time.now.httpdate})
+      else
+        storage.create_file("expirator", {"Last-Expiration" => Time.now.httpdate})
+      end
     end
   end
 end

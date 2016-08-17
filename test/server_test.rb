@@ -509,8 +509,10 @@ describe Tus::Server do
     @server.opts[:expiration_interval] = 0
     response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
     file_path = URI(response.location).path
-    response = @app.head file_path, options
-    assert_equal 404, response.status
+    loop do
+      response = @app.head file_path, options
+      break if response.status == 404
+    end
   end
 
   it "accepts a trailing slash" do
