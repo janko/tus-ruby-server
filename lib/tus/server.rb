@@ -48,6 +48,7 @@ module Tus
       )
 
       handle_cors!
+      validate_tus_resumable! unless request.options? || request.get?
 
       r.is base_path do
         r.options do
@@ -60,8 +61,6 @@ module Tus
 
           no_content!
         end
-
-        validate_tus_resumable!
 
         r.post do
           validate_upload_concat! if request.headers["Upload-Concat"]
@@ -101,9 +100,9 @@ module Tus
       end
 
       r.is "#{base_path}/:uid" do |uid|
-        r.options do
-          not_found! unless storage.file_exists?(uid)
+        not_found! unless storage.file_exists?(uid)
 
+        r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
             "Tus-Extension"          => SUPPORTED_EXTENSIONS.join(","),
@@ -115,8 +114,6 @@ module Tus
         end
 
         r.get do
-          not_found! unless storage.file_exists?(uid)
-
           path = storage.download_file(uid)
           info = Info.new(storage.read_info(uid))
 
@@ -133,9 +130,6 @@ module Tus
 
           request.halt response.finish_with_body(result[2])
         end
-
-        validate_tus_resumable!
-        not_found! unless storage.file_exists?(uid)
 
         r.head do
           info = storage.read_info(uid)
