@@ -80,16 +80,17 @@ module Tus
           storage.create_file(uid, info.to_h)
 
           if info.final_upload?
-            uids = info.partial_uploads
-            content = uids.inject("") { |s, uid| s << storage.read_file(uid) }
-            storage.patch_file(uid, content)
+            length = info.partial_uploads.inject(0) do |length, partial_uid|
+              content = storage.read_file(partial_uid)
+              storage.patch_file(uid, content)
+              storage.delete_file(partial_uid)
+              length += content.length
+            end
 
-            info["Upload-Length"] = content.length.to_s
-            info["Upload-Offset"] = content.length.to_s
+            info["Upload-Length"] = length.to_s
+            info["Upload-Offset"] = length.to_s
 
             storage.update_info(uid, info.to_h)
-
-            uids.each { |uid| storage.delete_file(uid) }
           end
 
           response.headers.update(info.to_h)
