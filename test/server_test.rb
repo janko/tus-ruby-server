@@ -8,6 +8,7 @@ require "digest"
 describe Tus::Server do
   before do
     @server = Class.new(Tus::Server)
+    @storage = @server.opts[:storage] = Tus::Storage::Filesystem.new("data")
     @app = Rack::TestApp.wrap(Rack::Lint.new(@server))
   end
 
@@ -509,10 +510,10 @@ describe Tus::Server do
     @server.opts[:expiration_interval] = 0
     response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
     file_path = URI(response.location).path
-    loop do
-      response = @app.head file_path, options
-      break if response.status == 404
-    end
+    @app.options "/files", options # trigger expirator
+    loop { break unless @server.opts[:storage].file_exists?(file_path.split("/").last) }
+    response = @app.head file_path, options
+    break if response.status == 404
   end
 
   it "accepts a trailing slash" do
