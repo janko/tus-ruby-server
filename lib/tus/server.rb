@@ -293,7 +293,7 @@ module Tus
 
     def error!(status, message)
       response.status = status
-      response.write(message)
+      response.write(message) unless request.head?
       request.halt
     end
 

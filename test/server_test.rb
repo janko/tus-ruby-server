@@ -276,6 +276,11 @@ describe Tus::Server do
       response = @app.head file_path, options(headers: {"Tus-Resumable" => ""})
       assert_equal 412, response.status
     end
+
+    it "doesn't return response on errors" do
+      response = @app.head "/files/unknown", options
+      assert_equal "", response.body_binary
+    end
   end
 
   describe "PATCH /files/:uid" do
