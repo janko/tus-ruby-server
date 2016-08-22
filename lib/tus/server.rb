@@ -31,7 +31,7 @@ module Tus
     plugin :not_allowed
 
     route do |r|
-      expire_files!
+      expire_files
 
       if request.headers["X-HTTP-Method-Override"]
         request.env["REQUEST_METHOD"] = request.headers["X-HTTP-Method-Override"]
@@ -169,7 +169,7 @@ module Tus
       end
     end
 
-    def expire_files!
+    def expire_files
       expirator = Expirator.new(storage, interval: expiration_interval)
       expirator.expire_files!
     end
