@@ -11,12 +11,10 @@ module Tus
   class Server < Roda
     SUPPORTED_VERSIONS = ["1.0.0"]
     SUPPORTED_EXTENSIONS = [
-      "creation",
-      "creation-defer-length",
+      "creation", "creation-defer-length",
       "termination",
       "expiration",
-      "concatenation",
-      "concatenation-unfinished",
+      "concatenation", "concatenation-unfinished",
       "checksum",
     ]
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
