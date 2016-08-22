@@ -44,7 +44,7 @@ module Tus
       handle_cors!
       validate_tus_resumable! unless request.options? || request.get?
 
-      r.is '' do
+      r.is ['', true] do
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
