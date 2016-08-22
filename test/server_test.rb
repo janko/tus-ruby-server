@@ -9,7 +9,12 @@ describe Tus::Server do
   before do
     @server = Class.new(Tus::Server)
     @storage = @server.opts[:storage] = Tus::Storage::Filesystem.new("data")
-    @app = Rack::TestApp.wrap(Rack::Lint.new(@server))
+
+    builder = Rack::Builder.new
+    builder.use Rack::Lint
+    builder.run Rack::URLMap.new("/files" => @server)
+
+    @app = Rack::TestApp.wrap(builder)
   end
 
   after do
@@ -516,19 +521,13 @@ describe Tus::Server do
     response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
     file_path = URI(response.location).path
     @app.options "/files", options # trigger expirator
-    loop { break unless @server.opts[:storage].file_exists?(file_path.split("/").last) }
+    loop { break unless @storage.file_exists?(file_path.split("/").last) }
     response = @app.head file_path, options
     break if response.status == 404
   end
 
   it "accepts a trailing slash" do
     response = @app.options "/files/"
-    assert_equal 204, response.status
-  end
-
-  it "can configure base path" do
-    @server.opts[:base_path] = "uploads"
-    response = @app.options "/uploads"
     assert_equal 204, response.status
   end
 

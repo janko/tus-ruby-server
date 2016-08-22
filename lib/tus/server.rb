@@ -23,7 +23,6 @@ module Tus
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
-    opts[:base_path]           = "files"
     opts[:max_size]            = 1024*1024*1024
     opts[:expiration_time]     = 7*24*60*60
     opts[:expiration_interval] = 60*60
@@ -33,8 +32,6 @@ module Tus
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :default_headers, "Content-Type" => ""
-    plugin :not_allowed
-    plugin :middleware
 
     route do |r|
       expire_files!
@@ -50,7 +47,9 @@ module Tus
       handle_cors!
       validate_tus_resumable! unless request.options? || request.get?
 
-      r.is base_path do
+      r.is do
+        allow_methods!(:options, :post)
+
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
@@ -100,7 +99,8 @@ module Tus
         end
       end
 
-      r.is "#{base_path}/:uid" do |uid|
+      r.is ":uid" do |uid|
+        allow_methods!(:options, :get, :head, :patch, :delete)
         not_found! unless storage.file_exists?(uid)
 
         r.options do
@@ -243,9 +243,9 @@ module Tus
       error!(400, "Invalid Upload-Concat header") if upload_concat !~ /^(partial|final)/
 
       if upload_concat.start_with?("final")
-        string = upload_concat.split(";").last.to_s
+        string = upload_concat.split(";").last
         string.split(" ").each do |url|
-          error!(400, "Invalid Upload-Concat header") if url !~ %r{^/#{base_path}/\w+$}
+          error!(400, "Invalid Upload-Concat header") if url !~ %r{^#{request.script_name}/\w+$}
         end
       end
     end
@@ -277,6 +277,16 @@ module Tus
       end
     end
 
+    def allow_methods!(*methods)
+      methods = methods.map(&:to_s).map(&:upcase)
+
+      unless methods.include?(request.request_method)
+        response.status = 405
+        response.headers["Allow"] = "#{methods.join(", ")}"
+        request.halt
+      end
+    end
+
     def no_content!
       response.status = 204
       response.headers["Content-Length"] = ""
@@ -295,10 +305,6 @@ module Tus
       response.status = status
       response.write(message) unless request.head?
       request.halt
-    end
-
-    def base_path
-      opts[:base_path]
     end
 
     def storage
