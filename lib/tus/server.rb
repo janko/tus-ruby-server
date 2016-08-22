@@ -28,10 +28,10 @@ module Tus
     opts[:expiration_interval] = 60*60
 
     plugin :all_verbs
-    plugin :slash_path_empty
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :default_headers, "Content-Type" => ""
+    plugin :not_allowed
 
     route do |r|
       expire_files!
@@ -47,9 +47,7 @@ module Tus
       handle_cors!
       validate_tus_resumable! unless request.options? || request.get?
 
-      r.is do
-        allow_methods!(:options, :post)
-
+      r.is '' do
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
@@ -100,7 +98,6 @@ module Tus
       end
 
       r.is ":uid" do |uid|
-        allow_methods!(:options, :get, :head, :patch, :delete)
         not_found! unless storage.file_exists?(uid)
 
         r.options do
@@ -274,16 +271,6 @@ module Tus
         response.headers["Access-Control-Max-Age"]       = "86400"
       else
         response.headers["Access-Control-Expose-Headers"] = "Upload-Offset, Location, Upload-Length, Tus-Version, Tus-Resumable, Tus-Max-Size, Tus-Extension, Upload-Metadata"
-      end
-    end
-
-    def allow_methods!(*methods)
-      methods = methods.map(&:to_s).map(&:upcase)
-
-      unless methods.include?(request.request_method)
-        response.status = 405
-        response.headers["Allow"] = "#{methods.join(", ")}"
-        request.halt
       end
     end
 
