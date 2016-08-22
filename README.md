@@ -50,7 +50,7 @@ see [shrine-tus-demo] on how you can integrate the two.
 
 As per tus protocol, you can assign custom metadata when creating a file using
 the `Upload-Metadata` header. When retrieving the file via a GET request,
-tus-server will use
+tus-ruby-server will use
 
 * `content_type` -- for setting the `Content-Type` header
 * `filename` -- for setting the `Content-Disposition` header
@@ -72,8 +72,9 @@ The downside of storing files on the filesystem is that it isn't distributed,
 so for resumable uploads to work you have to host the tus application on a
 single server.
 
-However, tus-server also ships with MongoDB [GridFS] storage, which among other
-things is convenient for a multi-server setup. It requires the [Mongo] gem:
+However, tus-ruby-server also ships with MongoDB [GridFS] storage, which among
+other things is convenient for a multi-server setup. It requires the [Mongo]
+gem:
 
 ```rb
 gem "mongo"
@@ -129,8 +130,8 @@ The following checksum algorithms are supported for the `checksum` extension:
 
 ## Limitations
 
-Since tus-server is built using a Rack-based web framework (Roda), if a PATCH
-request gets interrupted, none of the received data will be stored. It's
+Since tus-ruby-server is built using a Rack-based web framework (Roda), if a
+PATCH request gets interrupted, none of the received data will be stored. It's
 recommended to configure your client tus library not to use a single PATCH
 request for large files, but rather to split it into multiple chunks. You can
 do that for [tus-js-client] by specifying a maximum chunk size:
@@ -147,6 +148,10 @@ Tus-server also currently doesn't support the `checksum-trailer` extension,
 which would allow sending the checksum header *after* the data has been sent,
 using [trailing headers].
 
+## Inspiration
+
+The tus-ruby-server was inspired by [rubytus].
+
 ## License
 
 [MIT](/LICENSE.txt)
@@ -162,3 +167,4 @@ using [trailing headers].
 [shrine-tus-demo]: https://github.com/janko-m/shrine-tus-demo
 [Shrine]: https://github.com/janko-m/shrine
 [trailing headers]: https://tools.ietf.org/html/rfc7230#section-4.1.2
+[rubytus]: https://github.com/picocandy/rubytus
