@@ -139,7 +139,7 @@ do that for [tus-js-client] by specifying a maximum chunk size:
 ```js
 new tus.Upload(file, {
   endpoint: "http://localhost:9292/files",
-  chunkSize: 15*1024*1024, # 15 MB
+  chunkSize: 15*1024*1024, // 15 MB
   // ...
 })
 ```
