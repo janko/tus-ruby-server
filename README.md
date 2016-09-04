@@ -163,7 +163,8 @@ The tus-ruby-server was inspired by [rubytus].
 [checksum]: http://tus.io/protocols/resumable-upload.html#checksum
 [expiration]: http://tus.io/protocols/resumable-upload.html#expiration
 [termination]: http://tus.io/protocols/resumable-upload.html#termination
-[GridFS]: https://docs.mongodb.org/v3.0/core/gridfs/ 
+[GridFS]: https://docs.mongodb.org/v3.0/core/gridfs/
+[Mongo]: https://github.com/mongodb/mongo-ruby-driver
 [shrine-tus-demo]: https://github.com/janko-m/shrine-tus-demo
 [Shrine]: https://github.com/janko-m/shrine
 [trailing headers]: https://tools.ietf.org/html/rfc7230#section-4.1.2
