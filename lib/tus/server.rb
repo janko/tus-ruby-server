@@ -274,11 +274,13 @@ module Tus
     def no_content!
       response.status = 204
       response.headers["Content-Length"] = ""
+      request.halt
     end
 
     def created!(location)
       response.status = 201
       response.headers["Location"] = location
+      request.halt
     end
 
     def not_found!(message = "Upload not found")
