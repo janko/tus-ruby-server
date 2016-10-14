@@ -27,7 +27,6 @@ module Tus
     plugin :all_verbs
     plugin :delete_empty_headers
     plugin :request_headers
-    plugin :default_headers, "Content-Type" => ""
     plugin :not_allowed
 
     route do |r|
@@ -273,7 +272,6 @@ module Tus
 
     def no_content!
       response.status = 204
-      response.headers["Content-Length"] = ""
       request.halt
     end
 

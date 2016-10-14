@@ -14,7 +14,7 @@ Gem::Specification.new do |gem|
   gem.files        = Dir["README.md", "LICENSE.txt", "lib/**/*.rb", "*.gemspec"]
   gem.require_path = "lib"
 
-  gem.add_dependency "roda", "~> 2.17"
+  gem.add_dependency "roda", "~> 2.19"
   gem.add_dependency "rack", "~> 2.0"
 
   gem.add_development_dependency "rake", "~> 11.1"
