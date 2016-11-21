@@ -105,6 +105,12 @@ module Tus
           no_content!
         end
 
+        r.delete do
+          storage.delete_file(uid)
+
+          no_content!
+        end
+
         not_found! unless storage.file_exists?(uid)
 
         r.get do
@@ -156,12 +162,6 @@ module Tus
           storage.update_info(uid, info.to_h)
 
           response.headers.update(info.to_h)
-
-          no_content!
-        end
-
-        r.delete do
-          storage.delete_file(uid)
 
           no_content!
         end

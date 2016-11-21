@@ -46,7 +46,7 @@ module Tus
 
       def delete_file(uid)
         file_info = bucket.files_collection.find(filename: uid).first
-        bucket.delete(file_info.fetch("_id"))
+        bucket.delete(file_info.fetch("_id")) if file_info
       end
 
       def read_info(uid)

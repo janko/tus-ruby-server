@@ -34,8 +34,10 @@ module Tus
       end
 
       def delete_file(uid)
-        file_path(uid).delete
-        info_path(uid).delete
+        if file_exists?(uid)
+          file_path(uid).delete
+          info_path(uid).delete
+        end
       end
 
       def read_info(uid)

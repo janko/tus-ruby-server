@@ -482,13 +482,13 @@ describe Tus::Server do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
       response = @app.delete file_path, options
-      response = @app.delete file_path, options
+      response = @app.head file_path, options
       assert_equal 404, response.status
     end
 
-    it "returns 404 if file doesn't exist" do
+    it "returns 204 if the file doesn't exist" do
       response = @app.delete "/files/unknown", options
-      assert_equal 404, response.status
+      assert_equal 204, response.status
     end
   end
 

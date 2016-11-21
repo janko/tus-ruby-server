@@ -64,6 +64,10 @@ describe Tus::Storage::Gridfs do
       @storage.delete_file("foo")
       assert_equal false, @storage.file_exists?("foo")
     end
+
+    it "doesn't fail when file doesn't exist" do
+      @storage.delete_file("foo")
+    end
   end
 
   describe "#read_info" do
