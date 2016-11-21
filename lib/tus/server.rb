@@ -94,8 +94,6 @@ module Tus
       end
 
       r.is ":uid" do |uid|
-        not_found! unless storage.file_exists?(uid)
-
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
@@ -106,6 +104,8 @@ module Tus
 
           no_content!
         end
+
+        not_found! unless storage.file_exists?(uid)
 
         r.get do
           path = storage.download_file(uid)

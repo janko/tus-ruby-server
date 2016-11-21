@@ -240,9 +240,9 @@ describe Tus::Server do
       refute response.headers.key?("Tus-Max-Size")
     end
 
-    it "returns 404 if file is missing" do
+    it "returns 204 even if file is missing" do
       response = @app.options "/files/unknown", options
-      assert_equal 404, response.status
+      assert_equal 204, response.status
     end
 
     it "doesn't require Tus-Resumable header" do
