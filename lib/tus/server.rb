@@ -117,9 +117,15 @@ module Tus
           path = storage.download_file(uid)
           info = Info.new(storage.read_info(uid))
 
-          file = Rack::File.new(File.dirname(path))
+          server = Rack::File.new(File.dirname(path))
 
-          result = file.serving(request, path)
+          result = if ::Rack.release > "2"
+                     server.serving(request, path)
+                   else
+                     server = server.dup
+                     server.path = path
+                     server.serving(env)
+                   end
 
           response.status = result[0]
           response.headers.update(result[1])
