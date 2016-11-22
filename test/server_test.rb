@@ -417,6 +417,23 @@ describe Tus::Server do
       assert_equal 404, response.status
     end
 
+    it "refreshes Upload-Expires metadata" do
+      @server.opts[:expiration_time] = 1
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      initial_expiration = Time.parse(response.headers["Upload-Expires"])
+
+      @server.opts[:expiration_time] = 3
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
+        input: "a" * 5,
+        headers: {"Upload-Offset"  => "0",
+                  "Content-Type"   => "application/offset+octet-stream"},
+      )
+      new_expiration = Time.parse(response.headers["Upload-Expires"])
+
+      assert_operator new_expiration, :>, initial_expiration
+    end
+
     it "requires Tus-Resumable header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path

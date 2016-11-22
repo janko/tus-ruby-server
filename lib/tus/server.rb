@@ -165,8 +165,9 @@ module Tus
           storage.patch_file(uid, content)
 
           info["Upload-Offset"] = (info.offset + content.length).to_s
-          storage.update_info(uid, info.to_h)
+          info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
+          storage.update_info(uid, info.to_h)
           response.headers.update(info.to_h)
 
           no_content!
