@@ -106,9 +106,10 @@ Tus::Server.opts[:max_size] = nil                # no limit
 
 ### Expiration
 
-By default both partially and fully uploaded files will get deleted after one
-week, and the interval of checking for expired files is 1 hour. You can change
-both of these:
+The expiration date is automatically set on each created file, and is refreshed
+on each PATCH request. By default the expiration date is 1 week from the last
+POST or PATCH request, and the interval of checking expired files is 1 hour,
+but this can be changed:
 
 ```rb
 require "tus/server"
