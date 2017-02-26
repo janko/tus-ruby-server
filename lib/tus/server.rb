@@ -6,6 +6,7 @@ require "tus/expirator"
 require "tus/checksum"
 
 require "securerandom"
+require "time"
 
 module Tus
   class Server < Roda
