@@ -57,9 +57,9 @@ module Tus
         end
 
         r.post do
-          validate_upload_concat! if request.headers["Upload-Concat"]
           validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final") || request.headers["Upload-Defer-Length"] == "1"
           validate_upload_metadata! if request.headers["Upload-Metadata"]
+          validate_upload_concat! if request.headers["Upload-Concat"]
 
           uid = SecureRandom.hex
           info = Info.new(
@@ -160,9 +160,9 @@ module Tus
             info["Upload-Defer-Length"] = nil
           end
 
-          validate_upload_checksum! if request.headers["Upload-Checksum"]
-          validate_upload_offset!(info.offset)
           validate_content_length!(info.remaining_length)
+          validate_upload_offset!(info.offset)
+          validate_upload_checksum! if request.headers["Upload-Checksum"]
 
           storage.patch_file(uid, content)
 
