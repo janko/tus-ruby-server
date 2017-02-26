@@ -8,17 +8,18 @@ require "digest"
 module Tus
   module Storage
     class Gridfs
-      attr_reader :client, :prefix, :bucket
+      attr_reader :client, :prefix, :bucket, :chunk_size
 
-      def initialize(client:, prefix: "fs")
+      def initialize(client:, prefix: "fs", chunk_size: 256*1024)
         @client = client
         @prefix = prefix
         @bucket = @client.database.fs(bucket_name: @prefix)
         @bucket.send(:ensure_indexes!)
+        @chunk_size = chunk_size
       end
 
       def create_file(uid, metadata = {})
-        file = Mongo::Grid::File.new("", filename: uid, metadata: metadata)
+        file = Mongo::Grid::File.new("", filename: uid, metadata: metadata, chunk_size: chunk_size)
         bucket.insert_one(file)
       end
 
