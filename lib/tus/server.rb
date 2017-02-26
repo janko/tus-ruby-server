@@ -161,7 +161,7 @@ module Tus
 
           validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
           validate_upload_offset!(info.offset)
-          validate_content_length!(content, info.remaining_length)
+          validate_content_length!(info.remaining_length)
 
           storage.patch_file(uid, content)
 
@@ -219,9 +219,9 @@ module Tus
       end
     end
 
-    def validate_content_length!(content, remaining_length)
+    def validate_content_length!(remaining_length)
       error!(403, "Cannot modify completed upload") if remaining_length == 0
-      error!(413, "Size of this chunk surpasses Upload-Length") if content.length > remaining_length
+      error!(413, "Size of this chunk surpasses Upload-Length") if Integer(request.content_length) > remaining_length
     end
 
     def validate_upload_metadata!
