@@ -10,39 +10,60 @@ module Tus
       @algorithm = algorithm
     end
 
-    def match?(checksum, content)
+    def match?(checksum, io)
       checksum = Base64.decode64(checksum)
-      generate(content) == checksum
+      generate(io) == checksum
     end
 
-    def generate(content)
-      send("generate_#{algorithm}", content)
+    def generate(io)
+      send("generate_#{algorithm}", io)
     end
 
     private
 
-    def generate_sha1(content)
-      Digest::SHA1.hexdigest(content)
+    def generate_sha1(io)
+      digest(:SHA1, io)
     end
 
-    def generate_sha256(content)
-      Digest::SHA256.hexdigest(content)
+    def generate_sha256(io)
+      digest(:SHA256, io)
     end
 
-    def generate_sha384(content)
-      Digest::SHA384.hexdigest(content)
+    def generate_sha384(io)
+      digest(:SHA384, io)
     end
 
-    def generate_sha512(content)
-      Digest::SHA512.hexdigest(content)
+    def generate_sha512(io)
+      digest(:SHA512, io)
     end
 
-    def generate_md5(content)
-      Digest::MD5.hexdigest(content)
+    def generate_md5(io)
+      digest(:MD5, io)
     end
 
-    def generate_crc32(content)
-      Zlib.crc32(content).to_s
+    def generate_crc32(io)
+      crc = nil
+      read_chunks(io) { |chunk| crc = Zlib.crc32(chunk, crc) }
+      crc.to_s
+    end
+
+    def digest(name, io)
+      digest = Digest.const_get(name).new
+      read_chunks(io) { |chunk| digest.update(chunk) }
+      digest.hexdigest
+    end
+
+    def read_chunks(io)
+      loop do
+        chunk = io.read(16384, buf ||= "")
+
+        if chunk
+          yield chunk
+        else
+          io.rewind
+          break
+        end
+      end
     end
   end
 end

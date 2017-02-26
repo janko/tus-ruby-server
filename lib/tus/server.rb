@@ -151,6 +151,7 @@ module Tus
           validate_content_type!
 
           content = request.body.read
+          request.body.rewind
           info = Info.new(storage.read_info(uid))
 
           if info.defer_length?
@@ -159,7 +160,7 @@ module Tus
             info["Upload-Defer-Length"] = nil
           end
 
-          validate_upload_checksum!(content) if request.headers["Upload-Checksum"]
+          validate_upload_checksum! if request.headers["Upload-Checksum"]
           validate_upload_offset!(info.offset)
           validate_content_length!(info.remaining_length)
 
@@ -251,13 +252,13 @@ module Tus
       end
     end
 
-    def validate_upload_checksum!(content)
+    def validate_upload_checksum!
       algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
 
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
       error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
 
-      unless Checksum.new(algorithm).match?(checksum, content)
+      unless Checksum.new(algorithm).match?(checksum, request.body)
         error!(460, "Checksum from Upload-Checksum header doesn't match generated")
       end
     end

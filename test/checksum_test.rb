@@ -1,27 +1,15 @@
 require "test_helper"
+require "stringio"
 
 describe Tus::Checksum do
-  it "calculates sha1" do
-    refute_empty Tus::Checksum.new("sha1").generate("foo")
-  end
+  %w[sha1 sha256 sha384 sha512 md5 crc32].each do |algorithm|
+    it "calculates #{algorithm}" do
+      checksum = Tus::Checksum.new(algorithm)
+      io       = StringIO.new("foo")
 
-  it "calculates sha256" do
-    refute_empty Tus::Checksum.new("sha256").generate("foo")
-  end
+      refute_empty checksum.generate(io)
 
-  it "calculates sha384" do
-    refute_empty Tus::Checksum.new("sha384").generate("foo")
-  end
-
-  it "calculates sha512" do
-    refute_empty Tus::Checksum.new("sha512").generate("foo")
-  end
-
-  it "calculates md5" do
-    refute_empty Tus::Checksum.new("md5").generate("foo")
-  end
-
-  it "calculates crc32" do
-    refute_empty Tus::Checksum.new("crc32").generate("foo")
+      assert 0, io.pos
+    end
   end
 end
