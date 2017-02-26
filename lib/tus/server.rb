@@ -7,6 +7,7 @@ require "tus/checksum"
 
 require "securerandom"
 require "time"
+require "stringio"
 
 module Tus
   class Server < Roda
@@ -76,7 +77,7 @@ module Tus
           if info.final_upload?
             length = info.partial_uploads.inject(0) do |length, partial_uid|
               content = storage.read_file(partial_uid)
-              storage.patch_file(uid, content)
+              storage.patch_file(uid, StringIO.new(content))
               storage.delete_file(partial_uid)
               length += content.length
             end
@@ -150,8 +151,6 @@ module Tus
         r.patch do
           validate_content_type!
 
-          content = request.body.read
-          request.body.rewind
           info = Info.new(storage.read_info(uid))
 
           if info.defer_length?
@@ -164,9 +163,9 @@ module Tus
           validate_upload_offset!(info.offset)
           validate_upload_checksum! if request.headers["Upload-Checksum"]
 
-          storage.patch_file(uid, content)
+          storage.patch_file(uid, request.body)
 
-          info["Upload-Offset"] = (info.offset + content.length).to_s
+          info["Upload-Offset"] = (info.offset + Integer(request.content_length)).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           storage.update_info(uid, info.to_h)

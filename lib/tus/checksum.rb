@@ -1,3 +1,5 @@
+require "tus/utils"
+
 require "base64"
 require "digest"
 require "zlib"
@@ -43,27 +45,14 @@ module Tus
 
     def generate_crc32(io)
       crc = nil
-      read_chunks(io) { |chunk| crc = Zlib.crc32(chunk, crc) }
+      Utils.read_chunks(io) { |chunk| crc = Zlib.crc32(chunk, crc) }
       crc.to_s
     end
 
     def digest(name, io)
       digest = Digest.const_get(name).new
-      read_chunks(io) { |chunk| digest.update(chunk) }
+      Utils.read_chunks(io) { |chunk| digest.update(chunk) }
       digest.hexdigest
-    end
-
-    def read_chunks(io)
-      loop do
-        chunk = io.read(16384, buf ||= "")
-
-        if chunk
-          yield chunk
-        else
-          io.rewind
-          break
-        end
-      end
     end
   end
 end

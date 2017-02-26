@@ -1,16 +1,21 @@
 require "test_helper"
 require "tus/storage/gridfs"
 require "logger"
+require "stringio"
 
 describe Tus::Storage::Gridfs do
   before do
-    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
-    @storage = Tus::Storage::Gridfs.new(client: client)
+    @storage = gridfs
   end
 
   after do
     @storage.bucket.files_collection.find.delete_many
     @storage.bucket.chunks_collection.find.delete_many
+  end
+
+  def gridfs(**options)
+    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
+    Tus::Storage::Gridfs.new(client: client, **options)
   end
 
   describe "#create_file" do
@@ -35,7 +40,7 @@ describe Tus::Storage::Gridfs do
   describe "#read_file" do
     it "returns contents of the file" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", "content")
+      @storage.patch_file("foo", StringIO.new("content"))
       assert_equal "content", @storage.read_file("foo")
     end
   end
@@ -43,8 +48,17 @@ describe Tus::Storage::Gridfs do
   describe "#patch_file" do
     it "appends to the content" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", "hello")
-      @storage.patch_file("foo", " world")
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
+      assert_equal "hello world", @storage.read_file("foo")
+    end
+
+    it "works correctly with multiple chunks" do
+      @storage = gridfs(chunk_size: 1)
+      @storage.create_file("foo")
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
+      assert_equal 11, @storage.bucket.chunks_collection.find.count
       assert_equal "hello world", @storage.read_file("foo")
     end
   end
@@ -52,8 +66,8 @@ describe Tus::Storage::Gridfs do
   describe "#download_file" do
     it "returns path of downloaded file" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", "hello")
-      @storage.patch_file("foo", " world")
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
       assert_equal "hello world", File.read(@storage.download_file("foo"))
     end
   end

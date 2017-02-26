@@ -1,3 +1,5 @@
+require "tus/utils"
+
 require "pathname"
 require "json"
 
@@ -13,8 +15,8 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        write(file_path(uid), "")
-        write(info_path(uid), info.to_json)
+        open(file_path(uid), "w") { |file| file.write("") }
+        open(info_path(uid), "w") { |file| file.write(info.to_json) }
       end
 
       def file_exists?(uid)
@@ -25,8 +27,10 @@ module Tus
         file_path(uid).binread
       end
 
-      def patch_file(uid, content)
-        write(file_path(uid), content, mode: "ab")
+      def patch_file(uid, io)
+        open(file_path(uid), "a") do |file|
+          Utils.read_chunks(io) { |chunk| file.write(chunk) }
+        end
       end
 
       def download_file(uid)
@@ -46,7 +50,7 @@ module Tus
       end
 
       def update_info(uid, info)
-        write(info_path(uid), info.to_json)
+        open(info_path(uid), "w") { |file| file.write(info.to_json) }
       end
 
       def list_files
@@ -56,10 +60,10 @@ module Tus
 
       private
 
-      def write(pathname, content, mode: "wb")
-        pathname.open(mode) do |file|
+      def open(pathname, mode, **options)
+        pathname.open(mode, binmode: true, **options) do |file|
           file.sync = true
-          file.write(content)
+          yield file
         end
       end
 

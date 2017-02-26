@@ -1,6 +1,9 @@
 require "mongo"
+require "tus/utils"
+
 require "stringio"
 require "tempfile"
+require "digest"
 
 module Tus
   module Storage
@@ -28,13 +31,20 @@ module Tus
         file.data
       end
 
-      def patch_file(uid, content)
+      def patch_file(uid, io)
         file_info = bucket.files_collection.find(filename: uid).first
-        file_info["md5"] = Digest::MD5.new # hack around not able to update digest
-        file_info = Mongo::Grid::File::Info.new(file_info)
-        offset = bucket.chunks_collection.find(files_id: file_info.id).count
-        chunks = Mongo::Grid::File::Chunk.split(content, file_info, offset)
-        bucket.chunks_collection.insert_many(chunks)
+
+        offset = bucket.chunks_collection.find(files_id: file_info[:_id]).count
+        chunks = Utils.enum_for(:read_chunks, io, chunk_size: file_info[:chunkSize])
+        chunks.with_index.each do |bytes, n|
+          chunk = Mongo::Grid::File::Chunk.new(
+            data: BSON::Binary.new(bytes),
+            files_id: file_info[:_id],
+            n: n + offset,
+          )
+
+          bucket.chunks_collection.insert_one(chunk)
+        end
       end
 
       def download_file(uid)
