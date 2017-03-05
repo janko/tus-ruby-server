@@ -39,8 +39,12 @@ module Tus
         chunks = Mongo::Grid::File::Chunk.split(io, file_info, offset)
 
         bucket.chunks_collection.insert_many(chunks)
-
         chunks.each { |chunk| chunk.data.data.clear } # deallocate strings
+
+        bucket.files_collection.find(filename: uid).update_one("$set" => {
+          length:     file_info.length + io.size,
+          uploadDate: Time.now.utc,
+        })
       end
 
       def download_file(uid)

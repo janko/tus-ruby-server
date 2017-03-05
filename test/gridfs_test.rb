@@ -5,17 +5,13 @@ require "stringio"
 
 describe Tus::Storage::Gridfs do
   before do
-    @storage = gridfs
+    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
+    @storage = Tus::Storage::Gridfs.new(client: client, chunk_size: 1)
   end
 
   after do
     @storage.bucket.files_collection.find.delete_many
     @storage.bucket.chunks_collection.find.delete_many
-  end
-
-  def gridfs(**options)
-    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
-    Tus::Storage::Gridfs.new(client: client, **options)
   end
 
   describe "#create_file" do
@@ -54,12 +50,20 @@ describe Tus::Storage::Gridfs do
     end
 
     it "works correctly with multiple chunks" do
-      @storage = gridfs(chunk_size: 1)
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("hello"))
       @storage.patch_file("foo", StringIO.new(" world"))
-      assert_equal 11, @storage.bucket.chunks_collection.find.count
+      assert_equal (11.to_f / @storage.chunk_size).ceil, @storage.bucket.chunks_collection.find.count
       assert_equal "hello world", @storage.read_file("foo")
+    end
+
+    it "updates :length and :uploadDate" do
+      @storage.create_file("foo")
+      original_info = @storage.bucket.files_collection.find(filename: "foo").first
+      @storage.patch_file("foo", StringIO.new("hello"))
+      new_info = @storage.bucket.files_collection.find(filename: "foo").first
+      assert_equal 5, new_info[:length]
+      assert_operator new_info[:uploadDate], :>, original_info[:uploadDate]
     end
   end
 
