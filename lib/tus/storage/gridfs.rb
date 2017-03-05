@@ -1,6 +1,5 @@
 require "mongo"
 
-require "stringio"
 require "tempfile"
 require "digest"
 
