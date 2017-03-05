@@ -157,8 +157,11 @@ module Tus
 
           if info.defer_length?
             validate_upload_length!
+
             info["Upload-Length"] = request.headers["Upload-Length"]
             info["Upload-Defer-Length"] = nil
+
+            storage.update_info(uid, info.to_h)
           end
 
           validate_content_length!(info.remaining_length)
