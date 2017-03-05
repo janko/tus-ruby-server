@@ -63,8 +63,8 @@ module Tus
           validate_upload_metadata! if request.headers["Upload-Metadata"]
           validate_upload_concat! if request.headers["Upload-Concat"]
 
-          uid = SecureRandom.hex
-          info = Info.new(
+          uid  = SecureRandom.hex
+          info = Tus::Info.new(
             "Upload-Length"       => request.headers["Upload-Length"],
             "Upload-Offset"       => "0",
             "Upload-Defer-Length" => request.headers["Upload-Defer-Length"],
@@ -118,7 +118,7 @@ module Tus
 
         r.get do
           path = storage.download_file(uid)
-          info = Info.new(storage.read_info(uid))
+          info = Tus::Info.new(storage.read_info(uid))
 
           server = Rack::File.new(File.dirname(path))
 
@@ -152,7 +152,8 @@ module Tus
         r.patch do
           validate_content_type!
 
-          info = Info.new(storage.read_info(uid))
+          info  = Tus::Info.new(storage.read_info(uid))
+          input = Tus::Input.new(request.body)
 
           if info.defer_length?
             validate_upload_length!
@@ -162,9 +163,9 @@ module Tus
 
           validate_content_length!(info.remaining_length)
           validate_upload_offset!(info.offset)
-          validate_upload_checksum! if request.headers["Upload-Checksum"]
+          validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
-          storage.patch_file(uid, Input.new(request.body))
+          storage.patch_file(uid, input)
 
           info["Upload-Offset"] = (info.offset + Integer(request.content_length)).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
@@ -178,7 +179,7 @@ module Tus
     end
 
     def expire_files
-      expirator = Expirator.new(storage, interval: expiration_interval)
+      expirator = Tus::Expirator.new(storage, interval: expiration_interval)
       expirator.expire_files!
     end
 
@@ -252,13 +253,13 @@ module Tus
       end
     end
 
-    def validate_upload_checksum!
+    def validate_upload_checksum!(input)
       algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
 
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
       error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
 
-      unless Checksum.new(algorithm).match?(checksum, Input.new(request.body))
+      unless Tus::Checksum.new(algorithm).match?(checksum, input)
         error!(460, "Checksum from Upload-Checksum header doesn't match generated")
       end
     end
