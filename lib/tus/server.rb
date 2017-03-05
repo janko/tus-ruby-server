@@ -2,6 +2,7 @@ require "roda"
 
 require "tus/storage/filesystem"
 require "tus/info"
+require "tus/input"
 require "tus/expirator"
 require "tus/checksum"
 
@@ -163,7 +164,7 @@ module Tus
           validate_upload_offset!(info.offset)
           validate_upload_checksum! if request.headers["Upload-Checksum"]
 
-          storage.patch_file(uid, request.body)
+          storage.patch_file(uid, Input.new(request.body))
 
           info["Upload-Offset"] = (info.offset + Integer(request.content_length)).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
@@ -257,7 +258,7 @@ module Tus
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
       error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
 
-      unless Checksum.new(algorithm).match?(checksum, request.body)
+      unless Checksum.new(algorithm).match?(checksum, Input.new(request.body))
         error!(460, "Checksum from Upload-Checksum header doesn't match generated")
       end
     end

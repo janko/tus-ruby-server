@@ -1,5 +1,4 @@
 require "mongo"
-require "tus/utils"
 
 require "stringio"
 require "tempfile"
@@ -34,18 +33,15 @@ module Tus
 
       def patch_file(uid, io)
         file_info = bucket.files_collection.find(filename: uid).first
+        file_info[:md5] = Digest::MD5.new
+        file_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(file_info, Mongo::Grid::File::Info::MAPPINGS.invert))
 
-        offset = bucket.chunks_collection.find(files_id: file_info[:_id]).count
-        chunks = Utils.enum_for(:read_chunks, io, chunk_size: file_info[:chunkSize])
-        chunks.with_index.each do |bytes, n|
-          chunk = Mongo::Grid::File::Chunk.new(
-            data: BSON::Binary.new(bytes),
-            files_id: file_info[:_id],
-            n: n + offset,
-          )
+        offset = bucket.chunks_collection.find(files_id: file_info.id).count
+        chunks = Mongo::Grid::File::Chunk.split(io, file_info, offset)
 
-          bucket.chunks_collection.insert_one(chunk)
-        end
+        bucket.chunks_collection.insert_many(chunks)
+
+        chunks.each { |chunk| chunk.data.data.clear } # deallocate strings
       end
 
       def download_file(uid)

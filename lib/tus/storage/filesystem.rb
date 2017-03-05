@@ -1,5 +1,3 @@
-require "tus/utils"
-
 require "pathname"
 require "json"
 
@@ -28,9 +26,7 @@ module Tus
       end
 
       def patch_file(uid, io)
-        open(file_path(uid), "a") do |file|
-          Utils.read_chunks(io) { |chunk| file.write(chunk) }
-        end
+        open(file_path(uid), "a") { |file| IO.copy_stream(io, file) }
       end
 
       def download_file(uid)
