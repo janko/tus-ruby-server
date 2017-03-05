@@ -1,6 +1,4 @@
 require "mongo"
-
-require "tempfile"
 require "digest"
 
 module Tus
@@ -49,11 +47,50 @@ module Tus
         })
       end
 
-      def download_file(uid)
-        tempfile = Tempfile.new("tus", binmode: true)
-        tempfile.sync = true
-        bucket.download_to_stream_by_name(uid, tempfile)
-        tempfile.path
+      def get_file(uid, range: nil)
+        file_info = bucket.files_collection.find(filename: uid).first
+
+        filter = {files_id: file_info[:_id]}
+
+        if range
+          chunk_start = range.begin / file_info[:chunkSize] if range.begin
+          chunk_stop  = range.end   / file_info[:chunkSize] if range.end
+
+          filter[:n] = {}
+          filter[:n].update("$gte" => chunk_start) if chunk_start
+          filter[:n].update("$lte" => chunk_stop) if chunk_stop
+        end
+
+        chunks_view = bucket.chunks_collection.find(filter).read(bucket.read_preference).sort(n: 1)
+
+        chunks = Enumerator.new do |yielder|
+          chunks_view.each do |document|
+            data = document[:data].data
+
+            if document[:n] == chunk_start && document[:n] == chunk_stop
+              byte_start = range.begin % file_info[:chunkSize]
+              byte_stop  = range.end   % file_info[:chunkSize]
+            elsif document[:n] == chunk_start
+              byte_start = range.begin % file_info[:chunkSize]
+              byte_stop  = file_info[:chunkSize] - 1
+            elsif document[:n] == chunk_stop
+              byte_start = 0
+              byte_stop  = range.end % file_info[:chunkSize]
+            end
+
+            if byte_start && byte_stop
+              partial_data = data[byte_start..byte_stop]
+              yielder << partial_data
+              partial_data.clear # deallocate chunk string
+            else
+              yielder << data
+            end
+
+            data.clear # deallocate chunk string
+          end
+        end
+
+        Response.new(chunks: chunks, close: ->{chunks_view.close_query})
       end
 
       def delete_file(uid)
@@ -75,10 +112,19 @@ module Tus
         infos.map { |info| info.fetch("filename") }
       end
 
-      private
+      class Response
+        def initialize(chunks:, close:)
+          @chunks = chunks
+          @close  = close
+        end
 
-      def bson_id(uid)
-        BSON::ObjectId(uid)
+        def each(&block)
+          @chunks.each(&block)
+        end
+
+        def close
+          @close.call
+        end
       end
     end
   end

@@ -81,12 +81,29 @@ describe Tus::Storage::Gridfs do
     end
   end
 
-  describe "#download_file" do
-    it "returns path of downloaded file" do
+  describe "#get_file" do
+    it "returns the response that responds to #each" do
+      @storage = gridfs(chunk_size: 2)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
-      assert_equal "hello world", File.read(@storage.download_file("foo"))
+      @storage.patch_file("foo", StringIO.new("hello world"))
+      response = @storage.get_file("foo")
+      assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.map(&:dup)
+      response.close
+    end
+
+    it "supports partial responses" do
+      @storage = gridfs(chunk_size: 3)
+      @storage.create_file("foo")
+      @storage.patch_file("foo", StringIO.new("hello world"))
+
+      response = @storage.get_file("foo", range: 0..11)
+      assert_equal ["hel", "lo ", "wor", "ld"], response.each.map(&:dup)
+
+      response = @storage.get_file("foo", range: 6..11)
+      assert_equal ["wor", "ld"], response.each.map(&:dup)
+
+      response = @storage.get_file("foo", range: 4..6)
+      assert_equal ["o ", "w"], response.each.map(&:dup)
     end
   end
 

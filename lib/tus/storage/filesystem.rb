@@ -29,8 +29,25 @@ module Tus
         open(file_path(uid), "a") { |file| IO.copy_stream(io, file) }
       end
 
-      def download_file(uid)
-        file_path(uid).to_s
+      def get_file(uid, range: nil)
+        file = file_path(uid).open("r", binmode: true)
+        range ||= 0..file.size-1
+
+        chunks = Enumerator.new do |yielder|
+          file.seek(range.begin)
+          remaining_length = range.end - range.begin + 1
+          buffer = ""
+
+          while remaining_length > 0
+            chunk = file.read([16*1024, remaining_length].min, buffer)
+            break unless chunk
+            remaining_length -= chunk.length
+
+            yielder << chunk
+          end
+        end
+
+        Response.new(chunks: chunks, close: ->{file.close})
       end
 
       def delete_file(uid)
@@ -74,6 +91,21 @@ module Tus
       def create_directory!
         directory.mkpath
         directory.chmod(0755)
+      end
+
+      class Response
+        def initialize(chunks:, close:)
+          @chunks = chunks
+          @close  = close
+        end
+
+        def each(&block)
+          @chunks.each(&block)
+        end
+
+        def close
+          @close.call
+        end
       end
     end
   end

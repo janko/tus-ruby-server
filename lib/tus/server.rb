@@ -31,6 +31,7 @@ module Tus
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :not_allowed
+    plugin :streaming
 
     route do |r|
       expire_files
@@ -117,27 +118,36 @@ module Tus
         not_found! unless storage.file_exists?(uid)
 
         r.get do
-          path = storage.download_file(uid)
           info = Tus::Info.new(storage.read_info(uid))
 
-          server = Rack::File.new(File.dirname(path))
+          # "Range" header handling logic copied from Rack::File
+          ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], info.length)
+          if ranges.nil? || ranges.length > 1
+            # No ranges, or multiple ranges (which we don't support)
+            response.status = 200
+            range = 0..info.length-1
+          elsif ranges.empty?
+            # Unsatisfiable. Return error, and file size:
+            response.headers["Content-Range"] = "bytes */#{info.length}"
+            error!(416, "Byte range unsatisfiable")
+          else
+            # Partial content:
+            range = ranges[0]
+            response.status = 206
+            response.headers["Content-Range"] = "bytes #{range.begin}-#{range.end}/#{info.length}"
+          end
 
-          result = if ::Rack.release > "2"
-                     server.serving(request, path)
-                   else
-                     server = server.dup
-                     server.path = path
-                     server.serving(env)
-                   end
-
-          response.status = result[0]
-          response.headers.update(result[1])
+          response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
           metadata = info.metadata
           response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
 
-          request.halt response.finish_with_body(result[2])
+          response = storage.get_file(uid, range: range)
+
+          stream(callback: ->{response.close}) do |out|
+            response.each { |chunk| out << chunk }
+          end
         end
 
         r.head do

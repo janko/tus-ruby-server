@@ -448,10 +448,7 @@ describe Tus::Server do
 
   describe "GET /files/:uid" do
     it "returns the file" do
-      response = @app.post "/files", options(
-        headers: {"Upload-Length" => "100",
-                  "Upload-Metadata" => "filename #{Base64.encode64("image.jpg")},content_type #{Base64.encode64("image/jpeg")}"}
-      )
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
       response = @app.patch file_path, options(
         input: "a" * 50,
@@ -465,12 +462,14 @@ describe Tus::Server do
       )
       response = @app.get file_path
       assert_equal "a" * 100, response.body_binary
-      assert_equal "image/jpeg", response.headers["Content-Type"]
-      assert_equal "attachment; filename=\"image.jpg\"", response.headers["Content-Disposition"]
+      assert_equal "100", response.headers["Content-Length"]
     end
 
-    it "works without metadata" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+    it "sets response headers from metadata" do
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "100",
+                  "Upload-Metadata" => "filename #{Base64.encode64("image.jpg")},content_type #{Base64.encode64("image/jpeg")}"}
+      )
       file_path = URI(response.location).path
       response = @app.patch file_path, options(
         input: "a" * 100,
@@ -478,7 +477,38 @@ describe Tus::Server do
                   "Content-Type"  => "application/offset+octet-stream"}
       )
       response = @app.get file_path
-      assert_equal "a" * 100, response.body_binary
+      assert_equal "image/jpeg", response.headers["Content-Type"]
+      assert_equal "attachment; filename=\"image.jpg\"", response.headers["Content-Disposition"]
+    end
+
+    it "supports Range requests" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "11"})
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
+        input: "hello world",
+        headers: {"Upload-Offset" => "0",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+
+      response = @app.get file_path, headers: {"Range" => "bytes=0-"}
+      assert_equal "hello world",   response.body_binary
+      assert_equal "11",            response.headers["Content-Length"]
+      assert_equal "bytes 0-10/11", response.headers["Content-Range"]
+
+      response = @app.get file_path, headers: {"Range" => "bytes=6-"}
+      assert_equal "world",         response.body_binary
+      assert_equal "5",             response.headers["Content-Length"]
+      assert_equal "bytes 6-10/11", response.headers["Content-Range"]
+
+      response = @app.get file_path, headers: {"Range" => "bytes=4-6"}
+      assert_equal "o w",          response.body_binary
+      assert_equal "3",            response.headers["Content-Length"]
+      assert_equal "bytes 4-6/11", response.headers["Content-Range"]
+
+      response = @app.get file_path, headers: {"Range" => "bytes=-5"}
+      assert_equal "world",        response.body_binary
+      assert_equal "5",            response.headers["Content-Length"]
+      assert_equal "bytes 6-10/11", response.headers["Content-Range"]
     end
 
     it "returns 404 if file doesn't exist" do
