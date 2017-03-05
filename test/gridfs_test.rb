@@ -5,13 +5,17 @@ require "stringio"
 
 describe Tus::Storage::Gridfs do
   before do
-    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
-    @storage = Tus::Storage::Gridfs.new(client: client, chunk_size: 1)
+    @storage = gridfs
   end
 
   after do
     @storage.bucket.files_collection.find.delete_many
     @storage.bucket.chunks_collection.find.delete_many
+  end
+
+  def gridfs(**options)
+    client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb", logger: Logger.new(nil))
+    Tus::Storage::Gridfs.new(client: client, **options)
   end
 
   describe "#create_file" do
@@ -46,15 +50,25 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("hello"))
       @storage.patch_file("foo", StringIO.new(" world"))
+      assert_equal 3, @storage.bucket.chunks_collection.find.count
       assert_equal "hello world", @storage.read_file("foo")
     end
 
-    it "works correctly with multiple chunks" do
+    it "sets :chunkSize from the input size" do
       @storage.create_file("foo")
+      assert_equal nil, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
       @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
-      assert_equal (11.to_f / @storage.chunk_size).ceil, @storage.bucket.chunks_collection.find.count
-      assert_equal "hello world", @storage.read_file("foo")
+      assert_equal 5, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
+      assert_equal 1, @storage.bucket.chunks_collection.find.count
+    end
+
+    it "allow setting :chunkSize in initializer" do
+      @storage = gridfs(chunk_size: 1)
+      @storage.create_file("foo")
+      assert_equal 1, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
+      @storage.patch_file("foo", StringIO.new("hello"))
+      assert_equal 1, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
+      assert_equal 5, @storage.bucket.chunks_collection.find.count
     end
 
     it "updates :length and :uploadDate" do

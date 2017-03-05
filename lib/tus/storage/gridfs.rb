@@ -8,7 +8,7 @@ module Tus
     class Gridfs
       attr_reader :client, :prefix, :bucket, :chunk_size
 
-      def initialize(client:, prefix: "fs", chunk_size: 256*1024)
+      def initialize(client:, prefix: "fs", chunk_size: nil)
         @client = client
         @prefix = prefix
         @bucket = @client.database.fs(bucket_name: @prefix)
@@ -32,7 +32,8 @@ module Tus
 
       def patch_file(uid, io)
         file_info = bucket.files_collection.find(filename: uid).first
-        file_info[:md5] = Digest::MD5.new
+        file_info[:md5] = Digest::MD5.new # hack for `Chunk.split` updating MD5
+        file_info[:chunkSize] ||= io.size
         file_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(file_info, Mongo::Grid::File::Info::MAPPINGS.invert))
 
         offset = bucket.chunks_collection.find(files_id: file_info.id).count
@@ -44,6 +45,7 @@ module Tus
         bucket.files_collection.find(filename: uid).update_one("$set" => {
           length:     file_info.length + io.size,
           uploadDate: Time.now.utc,
+          chunkSize:  file_info.chunk_size,
         })
       end
 
