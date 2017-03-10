@@ -79,6 +79,36 @@ describe Tus::Storage::Gridfs do
       assert_equal 5, new_info[:length]
       assert_operator new_info[:uploadDate], :>, original_info[:uploadDate]
     end
+
+    it "patch with Tus::Input input from file" do
+      begin
+        @storage.create_file("foo")
+
+        tmpfile = Tempfile.new
+        tmpfile.write("hello world")
+        tmpfile.rewind
+
+        input = Tus::Input.new(tmpfile)
+
+        @storage.patch_file("foo", input)
+        assert_equal 1, @storage.bucket.chunks_collection.find.count
+        assert_equal "hello world", @storage.read_file("foo")
+      ensure
+        tmpfile.close!
+      end
+    end
+
+    it "patch with Tus::Input from string" do
+      @storage.create_file("foo")
+
+      io = StringIO.new("hello world")
+
+      input = Tus::Input.new(io)
+
+      @storage.patch_file("foo", input)
+      assert_equal 1, @storage.bucket.chunks_collection.find.count
+      assert_equal "hello world", @storage.read_file("foo")
+    end
   end
 
   describe "#get_file" do
