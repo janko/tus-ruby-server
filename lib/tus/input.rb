@@ -12,7 +12,7 @@ module Tus
     end
 
     def eof?
-      @eof
+      @eof || @input.eof?
     end
 
     def rewind
