@@ -12,7 +12,7 @@ module Tus
     end
 
     def eof?
-      @eof || @input.eof?
+      @eof || (@input.eof? if @input.respond_to?(:eof?))
     end
 
     def rewind
