@@ -1,3 +1,4 @@
+require "tus/info"
 require "mongo"
 require "digest"
 
@@ -33,6 +34,16 @@ module Tus
         file_info[:md5] = Digest::MD5.new # hack for `Chunk.split` updating MD5
         file_info[:chunkSize] ||= io.size
         file_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(file_info, Mongo::Grid::File::Info::MAPPINGS.invert))
+
+        tus_info = Tus::Info.new(file_info.metadata)
+
+        unless io.size % file_info.chunk_size == 0 ||        # IO fits into chunks
+               tus_info.length.nil? ||                       # Unknown length
+               file_info.length + io.size == tus_info.length # Last chunk
+
+          raise "Input has length #{io.size} but expected it to be a multiple of" \
+                "chunk size #{file_info.chunk_size} or for it to be the last chunk"
+        end
 
         offset = bucket.chunks_collection.find(files_id: file_info.id).count
         chunks = Mongo::Grid::File::Chunk.split(io, file_info, offset)

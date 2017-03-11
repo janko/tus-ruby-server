@@ -79,6 +79,13 @@ describe Tus::Storage::Gridfs do
       assert_equal 5, @storage.bucket.chunks_collection.find.count
     end
 
+    it "raises error on uneven chunks" do
+      @storage.create_file("foo", {"Upload-Length" => "11"})
+      @storage.patch_file("foo", StringIO.new("hello"))
+      exception = assert_raises { @storage.patch_file("foo", StringIO.new(" wo")) }
+      assert_match /Input has length/, exception.message
+    end
+
     it "updates :length and :uploadDate" do
       @storage.create_file("foo")
       original_info = @storage.bucket.files_collection.find(filename: "foo").first
