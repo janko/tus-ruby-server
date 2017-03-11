@@ -41,8 +41,9 @@ module Tus
                tus_info.length.nil? ||                       # Unknown length
                file_info.length + io.size == tus_info.length # Last chunk
 
-          raise "Input has length #{io.size} but expected it to be a multiple of" \
-                "chunk size #{file_info.chunk_size} or for it to be the last chunk"
+          raise Tus::Error,
+            "Input has length #{io.size} but expected it to be a multiple of" \
+            "chunk size #{file_info.chunk_size} or for it to be the last chunk"
         end
 
         offset = bucket.chunks_collection.find(files_id: file_info.id).count

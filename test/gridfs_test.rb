@@ -82,8 +82,7 @@ describe Tus::Storage::Gridfs do
     it "raises error on uneven chunks" do
       @storage.create_file("foo", {"Upload-Length" => "11"})
       @storage.patch_file("foo", StringIO.new("hello"))
-      exception = assert_raises { @storage.patch_file("foo", StringIO.new(" wo")) }
-      assert_match /Input has length/, exception.message
+      assert_raises(Tus::Error) { @storage.patch_file("foo", StringIO.new(" wo")) }
     end
 
     it "updates :length and :uploadDate" do
