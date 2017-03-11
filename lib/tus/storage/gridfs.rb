@@ -14,8 +14,8 @@ module Tus
         @chunk_size = chunk_size
       end
 
-      def create_file(uid, metadata = {})
-        file = Mongo::Grid::File.new("", filename: uid, metadata: metadata, chunk_size: chunk_size)
+      def create_file(uid, info = {})
+        file = Mongo::Grid::File.new("", filename: uid, metadata: info, chunk_size: chunk_size)
         bucket.insert_one(file)
       end
 
