@@ -544,6 +544,22 @@ describe Tus::Server do
       assert_equal "bytes 6-10/11", response.headers["Content-Range"]
     end
 
+    it "returns 403 if upload hasn't finished" do
+      response = @app.post "/files", options(
+        headers: {"Upload-Length" => "100"}
+      )
+      file_path = URI(response.location).path
+      response = @app.get file_path
+      assert_equal 403, response.status
+
+      response = @app.post "/files", options(
+        headers: {"Upload-Defer-Length" => "1"}
+      )
+      file_path = URI(response.location).path
+      response = @app.get file_path
+      assert_equal 403, response.status
+    end
+
     it "returns 404 if file doesn't exist" do
       response = @app.get "/files/unknown"
       assert_equal 404, response.status

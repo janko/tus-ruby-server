@@ -120,6 +120,7 @@ module Tus
         r.get do
           info = Tus::Info.new(storage.read_info(uid))
 
+          validate_upload_finished!(info.length, info.offset)
           range = handle_range_request!(info.length)
 
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
@@ -224,6 +225,10 @@ module Tus
       else
         error!(413, "Size of this chunk surpasses Tus-Max-Size") if Integer(request.content_length) + current_offset > max_size
       end
+    end
+
+    def validate_upload_finished!(length, current_offset)
+      error!(403, "Cannot download unfinished upload") unless length && current_offset && length == current_offset
     end
 
     def validate_upload_metadata!
