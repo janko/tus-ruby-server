@@ -386,6 +386,17 @@ describe Tus::Server do
                   "Content-Type"    => "application/offset+octet-stream"}
       )
       assert_equal 204, response.status
+
+      response = @app.patch file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"   => "50",
+                  "Upload-Checksum" => "sha1 #{Base64.encode64(Digest::SHA1.hexdigest("a" * 50))}",
+                  "Content-Type"    => "application/offset+octet-stream"}
+      )
+      assert_equal 204, response.status
+
+      response = @app.get file_path, options
+      assert_equal "a" * 100, response.body_binary
     end
 
     it "fails on invalid Upload-Checksum header" do

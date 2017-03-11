@@ -2,21 +2,22 @@ module Tus
   class Input
     def initialize(input)
       @input = input
-      @eof   = false
+      @bytes_read = 0
     end
 
     def read(*args)
       result = @input.read(*args)
-      @eof = (result == "" || result == nil)
+      @bytes_read += result.size if result.is_a?(String)
       result
     end
 
     def eof?
-      @eof
+      @bytes_read == size
     end
 
     def rewind
       @input.rewind
+      @bytes_read = 0
     end
 
     def size

@@ -54,6 +54,14 @@ describe Tus::Storage::Gridfs do
       assert_equal "hello world", @storage.read_file("foo")
     end
 
+    it "accepts Tus::Input" do
+      @storage.create_file("foo")
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
+      assert_equal 3, @storage.bucket.chunks_collection.find.count
+      assert_equal "hello world", @storage.read_file("foo")
+    end
+
     it "sets :chunkSize from the input size" do
       @storage.create_file("foo")
       assert_equal nil, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
