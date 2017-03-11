@@ -20,7 +20,7 @@ module Tus
     end
 
     def length
-      Integer(@hash["Upload-Length"])
+      Integer(@hash["Upload-Length"]) if @hash["Upload-Length"]
     end
 
     def offset

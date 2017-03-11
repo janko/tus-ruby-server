@@ -150,16 +150,14 @@ module Tus
           info  = Tus::Info.new(storage.read_info(uid))
           input = Tus::Input.new(request.body)
 
-          if info.defer_length?
+          if info.defer_length? && request.headers["Upload-Length"]
             validate_upload_length!
 
             info["Upload-Length"] = request.headers["Upload-Length"]
             info["Upload-Defer-Length"] = nil
-
-            storage.update_info(uid, info.to_h)
           end
 
-          validate_content_length!(info.remaining_length)
+          validate_content_length!(info.offset, info.length)
           validate_upload_offset!(info.offset)
           validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
@@ -219,9 +217,13 @@ module Tus
       end
     end
 
-    def validate_content_length!(remaining_length)
-      error!(403, "Cannot modify completed upload") if remaining_length == 0
-      error!(413, "Size of this chunk surpasses Upload-Length") if Integer(request.content_length) > remaining_length
+    def validate_content_length!(current_offset, length)
+      if length
+        error!(403, "Cannot modify completed upload") if current_offset == length
+        error!(413, "Size of this chunk surpasses Upload-Length") if Integer(request.content_length) + current_offset > length
+      else
+        error!(413, "Size of this chunk surpasses Tus-Max-Size") if Integer(request.content_length) + current_offset > max_size
+      end
     end
 
     def validate_upload_metadata!

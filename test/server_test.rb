@@ -198,18 +198,40 @@ describe Tus::Server do
       assert_equal "1", response.headers["Upload-Defer-Length"]
 
       response = @app.patch file_path, options(
+        input:   "a" * 50,
         headers: {"Upload-Offset" => "0",
                   "Content-Type"  => "application/offset+octet-stream"}
       )
-      assert_equal 400, response.status
+      assert_equal 204,  response.status
+      assert_equal "50", response.headers["Upload-Offset"]
+      assert_equal "1",  response.headers["Upload-Defer-Length"]
+      refute response.headers.key?("Upload-Length")
+
+      @server.opts[:max_size] = 100
+      response = @app.patch file_path, options(
+        input:   "a" * 100,
+        headers: {"Upload-Offset" => "50",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 413, response.status
 
       response = @app.patch file_path, options(
+        input:   "a" * 50,
+        headers: {"Upload-Length" => "150",
+                  "Upload-Offset" => "50",
+                  "Content-Type"  => "application/offset+octet-stream"}
+      )
+      assert_equal 413, response.status
+
+      response = @app.patch file_path, options(
+        input:   "a" * 50,
         headers: {"Upload-Length" => "100",
-                  "Upload-Offset" => "0",
+                  "Upload-Offset" => "50",
                   "Content-Type"  => "application/offset+octet-stream"}
       )
       assert_equal 204, response.status
       assert_equal "100", response.headers["Upload-Length"]
+      assert_equal "100", response.headers["Upload-Offset"]
       refute response.headers.key?("Upload-Defer-Length")
     end
 
