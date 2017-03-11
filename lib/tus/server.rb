@@ -120,22 +120,7 @@ module Tus
         r.get do
           info = Tus::Info.new(storage.read_info(uid))
 
-          # "Range" header handling logic copied from Rack::File
-          ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], info.length)
-          if ranges.nil? || ranges.length > 1
-            # No ranges, or multiple ranges (which we don't support)
-            response.status = 200
-            range = 0..info.length-1
-          elsif ranges.empty?
-            # Unsatisfiable. Return error, and file size:
-            response.headers["Content-Range"] = "bytes */#{info.length}"
-            error!(416, "Byte range unsatisfiable")
-          else
-            # Partial content:
-            range = ranges[0]
-            response.status = 206
-            response.headers["Content-Range"] = "bytes #{range.begin}-#{range.end}/#{info.length}"
-          end
+          range = handle_range_request!(info.length)
 
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
@@ -275,6 +260,28 @@ module Tus
       unless Tus::Checksum.new(algorithm).match?(checksum, input)
         error!(460, "Checksum from Upload-Checksum header doesn't match generated")
       end
+    end
+
+    # "Range" header handling logic copied from Rack::File
+    def handle_range_request!(length)
+      ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], length)
+
+      if ranges.nil? || ranges.length > 1
+        # No ranges, or multiple ranges (which we don't support):
+        response.status = 200
+        range = 0..length-1
+      elsif ranges.empty?
+        # Unsatisfiable. Return error, and file size:
+        response.headers["Content-Range"] = "bytes */#{length}"
+        error!(416, "Byte range unsatisfiable")
+      else
+        # Partial content:
+        range = ranges[0]
+        response.status = 206
+        response.headers["Content-Range"] = "bytes #{range.begin}-#{range.end}/#{length}"
+      end
+
+      range
     end
 
     def handle_cors!
