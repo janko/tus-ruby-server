@@ -3,7 +3,6 @@ require "roda"
 require "tus/storage/filesystem"
 require "tus/info"
 require "tus/input"
-require "tus/expirator"
 require "tus/checksum"
 
 require "securerandom"
@@ -23,9 +22,8 @@ module Tus
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
-    opts[:max_size]            = 1024*1024*1024
-    opts[:expiration_time]     = 7*24*60*60
-    opts[:expiration_interval] = 60*60
+    opts[:max_size]        = 1024*1024*1024
+    opts[:expiration_time] = 7*24*60*60
 
     plugin :all_verbs
     plugin :delete_empty_headers
@@ -35,8 +33,6 @@ module Tus
     plugin :error_handler
 
     route do |r|
-      expire_files
-
       if request.headers["X-HTTP-Method-Override"]
         request.env["REQUEST_METHOD"] = request.headers["X-HTTP-Method-Override"]
       end
@@ -177,11 +173,6 @@ module Tus
     error do |exception|
       not_found! if exception.is_a?(Tus::NotFound)
       raise
-    end
-
-    def expire_files
-      expirator = Tus::Expirator.new(storage, interval: expiration_interval)
-      expirator.expire_files!
     end
 
     def validate_content_type!

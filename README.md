@@ -103,17 +103,21 @@ Tus::Server.opts[:max_size] = nil                # no limit
 
 ### Expiration
 
-Tus-ruby-server automatically deletes unfinished and finished uploads after
-their expiration date has passed. The expiration date is set on each created
-file, and is refreshed on each PATCH request. By default the expiration date is
-1 week from the last POST or PATCH request, and the interval of checking
-expired files is 1 hour, but this can be changed:
+Tus-ruby-server automatically adds expiration dates to each uploaded file, and
+updates this date on each PATCH request. By default files expire 7 days after
+they were last updated, but that can be changed:
 
 ```rb
-require "tus/server"
+Tus::Server.opts[:expiration_time] = 2*24*60*60 # 2 days
+```
 
-Tus::Server.opts[:expiration_time]     = 14*24*60*60 # 2 weeks
-Tus::Server.opts[:expiration_interval] = 24*60*60    # 1 day
+Storages know how to delete files that have reached their expiration date,
+but tus-ruby-server won't automatically call storages to expire those files,
+you will have to set up a recurring task to do that.
+
+```rb
+expiration_date = Time.now.utc - Tus::Server.opts[:expiration_time]
+Tus::Server.opts[:storage].expire_files(expiration_date)
 ```
 
 ### Checksum

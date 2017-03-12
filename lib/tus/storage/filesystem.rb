@@ -17,10 +17,6 @@ module Tus
         open(info_path(uid), "w") { |file| file.write(info.to_json) }
       end
 
-      def file_exists?(uid)
-        file_path(uid).exist? && info_path(uid).exist?
-      end
-
       def read_file(uid)
         file_path(uid).binread
       end
@@ -71,9 +67,13 @@ module Tus
         info_path(uid).delete if info_path(uid).exist?
       end
 
-      def list_files
-        paths = Dir[directory.join("*.file")]
-        paths.map { |path| File.basename(path, ".file") }
+      def expire_files(expiration_date)
+        Pathname.glob(directory.join("*.file")).each do |pathname|
+          if pathname.mtime <= expiration_date
+            pathname.delete
+            pathname.sub_ext(".info").delete
+          end
+        end
       end
 
       private

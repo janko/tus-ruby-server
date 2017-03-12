@@ -611,17 +611,6 @@ describe Tus::Server do
     refute response.headers.key?("Access-Control-Allow-Origin")
   end
 
-  it "expires files" do
-    @server.opts[:expiration_time]     = 0
-    @server.opts[:expiration_interval] = 0
-    response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-    file_path = URI(response.location).path
-    @app.options "/files", options # trigger expirator
-    loop { break unless @storage.file_exists?(file_path.split("/").last) }
-    response = @app.head file_path, options
-    break if response.status == 404
-  end
-
   it "supports overriding HTTP verb with X-HTTP-Method-Override" do
     response = @app.get "/files", options(headers: {"X-HTTP-Method-Override" => "OPTIONS"})
     assert_equal 204, response.status

@@ -20,10 +20,6 @@ module Tus
         bucket.insert_one(file)
       end
 
-      def file_exists?(uid)
-        !!bucket.files_collection.find(filename: uid).first
-      end
-
       def read_file(uid)
         file = bucket.find_one(filename: uid)
         file.data
@@ -59,6 +55,18 @@ module Tus
           uploadDate: Time.now.utc,
           chunkSize:  file_info.chunk_size,
         })
+      end
+
+      def read_info(uid)
+        file_info = bucket.files_collection.find(filename: uid).first
+        raise Tus::NotFound if file_info.nil?
+
+        file_info.fetch("metadata")
+      end
+
+      def update_info(uid, info)
+        bucket.files_collection.find(filename: uid)
+          .update_one("$set" => {metadata: info})
       end
 
       def get_file(uid, range: nil)
@@ -113,21 +121,12 @@ module Tus
         bucket.delete(file_info.fetch("_id")) if file_info
       end
 
-      def read_info(uid)
-        file_info = bucket.files_collection.find(filename: uid).first
-        raise Tus::NotFound if file_info.nil?
+      def expire_files(expiration_date)
+        file_info_collection = bucket.files_collection.find(uploadDate: {"$lte" => expiration_date})
+        file_info_ids = file_info_collection.map { |info| info[:_id] }
 
-        file_info.fetch("metadata")
-      end
-
-      def update_info(uid, info)
-        bucket.files_collection.find(filename: uid)
-          .update_one("$set" => {metadata: info})
-      end
-
-      def list_files
-        infos = bucket.files_collection.find.to_a
-        infos.map { |info| info.fetch("filename") }
+        bucket.files_collection.delete_many(_id: {"$in" => file_info_ids})
+        bucket.chunks_collection.delete_many(files_id: {"$in" => file_info_ids})
       end
 
       class Response

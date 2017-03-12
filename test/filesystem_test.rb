@@ -28,17 +28,6 @@ describe Tus::Storage::Filesystem do
     end
   end
 
-  describe "file_exists?" do
-    it "returns true if file exists" do
-      @storage.create_file("foo")
-      assert_equal true, @storage.file_exists?("foo")
-    end
-
-    it "returns false if file doesn't exist" do
-      assert_equal false, @storage.file_exists?("unknown")
-    end
-  end
-
   describe "#read_file" do
     it "retrieves the file content" do
       @storage.create_file("foo")
@@ -130,6 +119,23 @@ describe Tus::Storage::Filesystem do
 
     it "doesn't raise an error if file is missing" do
       @storage.delete_file("unknown")
+    end
+  end
+
+  describe "#expire_files" do
+    it "deletes files past the given expiration date" do
+      time = Time.utc(2017, 3, 12)
+
+      @storage.create_file("foo")
+      @storage.create_file("bar")
+      @storage.create_file("baz")
+
+      File.utime(time,     time,     @storage.directory.join("foo.file"))
+      File.utime(time - 1, time - 1, @storage.directory.join("bar.file"))
+      File.utime(time - 2, time - 2, @storage.directory.join("baz.file"))
+
+      @storage.expire_files(time - 1)
+      assert_equal ["data/foo.file", "data/foo.info"], @storage.directory.children.map(&:to_s)
     end
   end
 end

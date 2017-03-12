@@ -26,17 +26,6 @@ describe Tus::Storage::Gridfs do
     end
   end
 
-  describe "file_exists?" do
-    it "returns true if file exists" do
-      @storage.create_file("foo")
-      assert_equal true, @storage.file_exists?("foo")
-    end
-
-    it "returns false if file doesn't exist" do
-      assert_equal false, @storage.file_exists?("unknown")
-    end
-  end
-
   describe "#read_file" do
     it "returns contents of the file" do
       @storage.create_file("foo")
@@ -171,11 +160,36 @@ describe Tus::Storage::Gridfs do
     end
   end
 
-  describe "#list_files" do
-    it "returns list of uids" do
+  describe "#expire_files" do
+    it "deletes files past the given expiration date" do
+      time = Time.utc(2017, 3, 12)
+
       @storage.create_file("foo")
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
+      @storage.bucket.files_collection.find(filename: "foo").update_one("$set" => {uploadDate: time})
+
       @storage.create_file("bar")
-      assert_equal ["foo", "bar"], @storage.list_files
+      @storage.patch_file("bar", StringIO.new("hello"))
+      @storage.patch_file("bar", StringIO.new(" world"))
+      @storage.bucket.files_collection.find(filename: "bar").update_one("$set" => {uploadDate: time - 1})
+
+      @storage.create_file("baz")
+      @storage.patch_file("baz", StringIO.new("hello"))
+      @storage.patch_file("baz", StringIO.new(" world"))
+      @storage.bucket.files_collection.find(filename: "baz").update_one("$set" => {uploadDate: time - 2})
+
+      @storage.expire_files(time - 1)
+
+      assert_equal 1, @storage.bucket.files_collection.find.count
+      assert_equal 3, @storage.bucket.chunks_collection.find.count
+
+      file_info = @storage.bucket.files_collection.find.first
+      assert_equal "foo", file_info[:filename]
+
+      chunks = @storage.bucket.chunks_collection.find
+      chunks.each { |chunk| assert_equal file_info[:_id], chunk[:files_id] }
+      assert_equal "hello world", chunks.map { |chunk| chunk[:data].data }.join
     end
   end
 end
