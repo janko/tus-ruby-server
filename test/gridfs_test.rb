@@ -95,7 +95,7 @@ describe Tus::Storage::Gridfs do
     end
 
     it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.patch_file("foo", StringIO.new("hello")) }
+      assert_raises(Tus::NotFound) { @storage.patch_file("unknown", StringIO.new("hello")) }
     end
   end
 
@@ -125,15 +125,23 @@ describe Tus::Storage::Gridfs do
     end
 
     it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.get_file("foo") }
+      assert_raises(Tus::NotFound) { @storage.get_file("unknown") }
     end
   end
 
   describe "#delete_file" do
-    it "deletes the file" do
+    it "deletes info and chunks" do
       @storage.create_file("foo")
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
+
+      assert_equal 1, @storage.bucket.files_collection.find.count
+      assert_equal 3, @storage.bucket.chunks_collection.find.count
+
       @storage.delete_file("foo")
-      assert_equal false, @storage.file_exists?("foo")
+
+      assert_equal 0, @storage.bucket.files_collection.find.count
+      assert_equal 0, @storage.bucket.chunks_collection.find.count
     end
 
     it "doesn't fail when file doesn't exist" do
@@ -151,7 +159,7 @@ describe Tus::Storage::Gridfs do
     end
 
     it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.read_info("foo") }
+      assert_raises(Tus::NotFound) { @storage.read_info("unknown") }
     end
   end
 
