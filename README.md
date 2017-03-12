@@ -37,7 +37,7 @@ endpoint:
 // using tus-js-client
 new tus.Upload(file, {
   endpoint: "http://localhost:9292/files",
-  chunkSize: 15*1024*1024, // 15 MB
+  chunkSize: 5*1024*1024, // 5MB
   // ...
 })
 ```
@@ -46,11 +46,14 @@ After upload is complete, you'll probably want to attach the uploaded files to
 database records. [Shrine] is one file attachment library that supports this,
 see [shrine-tus-demo] on how you can integrate the two.
 
+Tus-ruby-server accepts various configuration options via `Tus::Server.opts`,
+and it's probably best to modify that before `run Tus::Server`.
+
 ### Metadata
 
 As per tus protocol, you can assign custom metadata when creating a file using
-the `Upload-Metadata` header. When retrieving the file via a GET request,
-tus-ruby-server will use
+the `Upload-Metadata` header, or the `:metadata` option in tus-js-client. When
+retrieving the file via a GET request, tus-ruby-server will use
 
 * `content_type` -- for setting the `Content-Type` header
 * `filename` -- for setting the `Content-Disposition` header
@@ -63,8 +66,6 @@ By default `Tus::Server` saves partial and complete files on the filesystem,
 inside the `data/` directory. You can easily change the directory:
 
 ```rb
-require "tus/server"
-
 Tus::Server.opts[:storage] = Tus::Storage::Filesystem.new("public/cache")
 ```
 
@@ -81,7 +82,6 @@ gem "mongo"
 ```
 
 ```rb
-require "tus/server"
 require "tus/storage/gridfs"
 
 client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb")
@@ -97,10 +97,7 @@ By default the maximum size for an uploaded file is 1GB, but you can change
 that:
 
 ```rb
-require "tus/server"
-
 Tus::Server.opts[:max_size] = 5 * 1024*1024*1024 # 5GB
-# or
 Tus::Server.opts[:max_size] = nil                # no limit
 ```
 
