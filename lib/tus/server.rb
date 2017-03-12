@@ -32,6 +32,7 @@ module Tus
     plugin :request_headers
     plugin :not_allowed
     plugin :streaming
+    plugin :error_handler
 
     route do |r|
       expire_files
@@ -115,8 +116,6 @@ module Tus
           no_content!
         end
 
-        not_found! unless storage.file_exists?(uid)
-
         r.get do
           info = Tus::Info.new(storage.read_info(uid))
 
@@ -173,6 +172,11 @@ module Tus
           no_content!
         end
       end
+    end
+
+    error do |exception|
+      not_found! if exception.is_a?(Tus::NotFound)
+      raise
     end
 
     def expire_files

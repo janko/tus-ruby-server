@@ -31,6 +31,8 @@ module Tus
 
       def patch_file(uid, io)
         file_info = bucket.files_collection.find(filename: uid).first
+        raise Tus::NotFound if file_info.nil?
+
         file_info[:md5] = Digest::MD5.new # hack for `Chunk.split` updating MD5
         file_info[:chunkSize] ||= io.size
         file_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(file_info, Mongo::Grid::File::Info::MAPPINGS.invert))
@@ -61,6 +63,7 @@ module Tus
 
       def get_file(uid, range: nil)
         file_info = bucket.files_collection.find(filename: uid).first
+        raise Tus::NotFound if file_info.nil?
 
         filter = {files_id: file_info[:_id]}
 
@@ -111,12 +114,15 @@ module Tus
       end
 
       def read_info(uid)
-        info = bucket.files_collection.find(filename: uid).first
-        info.fetch("metadata")
+        file_info = bucket.files_collection.find(filename: uid).first
+        raise Tus::NotFound if file_info.nil?
+
+        file_info.fetch("metadata")
       end
 
       def update_info(uid, info)
-        bucket.files_collection.find(filename: uid).update_one("$set" => {metadata: info})
+        bucket.files_collection.find(filename: uid)
+          .update_one("$set" => {metadata: info})
       end
 
       def list_files

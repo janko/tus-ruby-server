@@ -93,6 +93,10 @@ describe Tus::Storage::Gridfs do
       assert_equal 5, new_info[:length]
       assert_operator new_info[:uploadDate], :>, original_info[:uploadDate]
     end
+
+    it "raises Tus::NotFound on missing file" do
+      assert_raises(Tus::NotFound) { @storage.patch_file("foo", StringIO.new("hello")) }
+    end
   end
 
   describe "#get_file" do
@@ -119,6 +123,10 @@ describe Tus::Storage::Gridfs do
       response = @storage.get_file("foo", range: 4..6)
       assert_equal ["o ", "w"], response.each.map(&:dup)
     end
+
+    it "raises Tus::NotFound on missing file" do
+      assert_raises(Tus::NotFound) { @storage.get_file("foo") }
+    end
   end
 
   describe "#delete_file" do
@@ -140,6 +148,10 @@ describe Tus::Storage::Gridfs do
 
       @storage.create_file("bar", {"Foo" => "Bar"})
       assert_equal Hash["Foo" => "Bar"], @storage.read_info("bar")
+    end
+
+    it "raises Tus::NotFound on missing file" do
+      assert_raises(Tus::NotFound) { @storage.read_info("foo") }
     end
   end
 
