@@ -53,7 +53,7 @@ describe Tus::Storage::Gridfs do
 
     it "sets :chunkSize from the input size" do
       @storage.create_file("foo")
-      assert_equal nil, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
+      assert_nil @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
       @storage.patch_file("foo", StringIO.new("hello"))
       assert_equal 5, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
       assert_equal 1, @storage.bucket.chunks_collection.find.count

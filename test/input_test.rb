@@ -25,7 +25,7 @@ describe Tus::Input do
     refute @input.eof?
     assert_equal "put", @input.read(3)
     assert @input.eof?
-    assert_equal nil,   @input.read(1)
+    assert_nil @input.read(1)
     @input.rewind
 
     buffer = ""
