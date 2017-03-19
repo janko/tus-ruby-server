@@ -176,8 +176,7 @@ module Tus
     end
 
     def validate_content_type!
-      content_type = request.headers["Content-Type"]
-      error!(415, "Invalid Content-Type header") if content_type != RESUMABLE_CONTENT_TYPE
+      error!(415, "Invalid Content-Type header") if request.content_type != RESUMABLE_CONTENT_TYPE
     end
 
     def validate_tus_resumable!
