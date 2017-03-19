@@ -265,7 +265,11 @@ module Tus
 
     # "Range" header handling logic copied from Rack::File
     def handle_range_request!(length)
-      ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], length)
+      if Rack.release >= "2.0"
+        ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], length)
+      else
+        ranges = Rack::Utils.byte_ranges(request.env, length)
+      end
 
       if ranges.nil? || ranges.length > 1
         # No ranges, or multiple ranges (which we don't support):
