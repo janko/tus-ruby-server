@@ -362,6 +362,19 @@ describe Tus::Server do
       assert_equal 409, response.status
     end
 
+    it "updates Upload-Offset with the input size" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+      response = @app.patch file_path, options(
+        input: "a" * 5,
+        headers: {"Upload-Offset"  => "0",
+                  "Content-Type"   => "application/offset+octet-stream",
+                  "Content-Length" => "10"},
+      )
+      assert_equal 204, response.status
+      assert_equal "5", response.headers["Upload-Offset"]
+    end
+
     it "doesn't allow body to surpass Upload-Length" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path

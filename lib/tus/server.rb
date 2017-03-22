@@ -125,7 +125,7 @@ module Tus
 
           storage.patch_file(uid, input, info.to_h)
 
-          info["Upload-Offset"] = (info.offset + Integer(request.content_length)).to_s
+          info["Upload-Offset"] = (info.offset + input.size).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           storage.update_info(uid, info.to_h)
