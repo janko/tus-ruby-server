@@ -16,7 +16,16 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        file = Mongo::Grid::File.new("", filename: uid, metadata: {}, chunk_size: chunk_size)
+        tus_info     = Tus::Info.new(info)
+        content_type = tus_info.metadata["content_type"]
+
+        file = Mongo::Grid::File.new("",
+          filename:     uid,
+          metadata:     {},
+          chunk_size:   chunk_size,
+          content_type: content_type,
+        )
+
         bucket.insert_one(file)
       end
 
@@ -37,10 +46,19 @@ module Tus
           raise Tus::Error, "last part has different chunk size and is composed of more than one chunk"
         end
 
-        length     = file_infos.inject(0) { |sum, file_info| sum + file_info[:length] }
-        chunk_size = file_infos.first[:chunkSize]
+        length       = file_infos.inject(0) { |sum, file_info| sum + file_info[:length] }
+        chunk_size   = file_infos.first[:chunkSize]
+        tus_info     = Tus::Info.new(info)
+        content_type = tus_info.metadata["content_type"]
 
-        file = Mongo::Grid::File.new("", filename: uid, metadata: {}, chunk_size: chunk_size, length: length)
+        file = Mongo::Grid::File.new("",
+          filename:     uid,
+          metadata:     {},
+          chunk_size:   chunk_size,
+          length:       length,
+          content_type: content_type,
+        )
+
         bucket.insert_one(file)
 
         file_infos.inject(0) do |offset, file_info|

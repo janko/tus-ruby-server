@@ -2,6 +2,7 @@ require "test_helper"
 require "tus/storage/gridfs"
 require "logger"
 require "stringio"
+require "base64"
 
 describe Tus::Storage::Gridfs do
   before do
@@ -22,6 +23,12 @@ describe Tus::Storage::Gridfs do
     it "creates a new empty file" do
       @storage.create_file("foo")
       assert_equal "", @storage.get_file("foo").each.map(&:dup).join
+    end
+
+    it "stores content type" do
+      @storage.create_file("foo", {"Upload-Metadata" => "content_type #{Base64.encode64("image/jpeg")}"})
+      file_info = @storage.bucket.files_collection.find.first
+      assert_equal "image/jpeg", file_info[:contentType]
     end
   end
 
@@ -45,6 +52,14 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("b")
       @storage.patch_file("b", StringIO.new(" world"))
       assert_equal 11, @storage.concatenate("ab", ["a", "b"])
+    end
+
+    it "stores content type" do
+      @storage.create_file("a")
+      @storage.create_file("b")
+      @storage.concatenate("ab", ["a", "b"], {"Upload-Metadata" => "content_type #{Base64.encode64("image/jpeg")}"})
+      file_info = @storage.bucket.files_collection.find.first
+      assert_equal "image/jpeg", file_info[:contentType]
     end
 
     it "deletes concatenated files" do
