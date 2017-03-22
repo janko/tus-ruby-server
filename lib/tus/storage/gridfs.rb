@@ -57,7 +57,7 @@ module Tus
         length
       end
 
-      def patch_file(uid, io)
+      def patch_file(uid, io, info = {})
         file_info = bucket.files_collection.find(filename: uid).first
         raise Tus::NotFound if file_info.nil?
 
@@ -101,7 +101,7 @@ module Tus
           .update_one("$set" => {metadata: info})
       end
 
-      def get_file(uid, range: nil)
+      def get_file(uid, info = {}, range: nil)
         file_info = bucket.files_collection.find(filename: uid).first
         raise Tus::NotFound if file_info.nil?
 
@@ -148,7 +148,7 @@ module Tus
         Response.new(chunks: chunks, close: ->{chunks_view.close_query})
       end
 
-      def delete_file(uid)
+      def delete_file(uid, info = {})
         file_info = bucket.files_collection.find(filename: uid).first
         bucket.delete(file_info.fetch("_id")) if file_info
       end

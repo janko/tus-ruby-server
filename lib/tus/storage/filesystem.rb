@@ -34,7 +34,7 @@ module Tus
         file_path(uid).size
       end
 
-      def patch_file(uid, io)
+      def patch_file(uid, io, info = {})
         raise Tus::NotFound if !file_path(uid).exist?
 
         file_path(uid).open("ab") { |file| IO.copy_stream(io, file) }
@@ -56,7 +56,7 @@ module Tus
         info_path(uid).open("wb") { |file| file.write(info.to_json) }
       end
 
-      def get_file(uid, range: nil)
+      def get_file(uid, info = {}, range: nil)
         raise Tus::NotFound if !file_path(uid).exist?
 
         file = file_path(uid).open("rb")
@@ -79,7 +79,7 @@ module Tus
         Response.new(chunks: chunks, close: ->{file.close})
       end
 
-      def delete_file(uid)
+      def delete_file(uid, info = {})
         delete([uid])
       end
 

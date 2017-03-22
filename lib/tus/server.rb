@@ -99,9 +99,9 @@ module Tus
           no_content!
         end
 
-        r.head do
-          info = Tus::Info.new(storage.read_info(uid))
+        info = Tus::Info.new(storage.read_info(uid))
 
+        r.head do
           response.headers.update(info.headers)
           response.headers["Cache-Control"] = "no-store"
 
@@ -109,9 +109,6 @@ module Tus
         end
 
         r.patch do
-          validate_content_type!
-
-          info  = Tus::Info.new(storage.read_info(uid))
           input = Tus::Input.new(request.body)
 
           if info.defer_length? && request.headers["Upload-Length"]
@@ -121,11 +118,12 @@ module Tus
             info["Upload-Defer-Length"] = nil
           end
 
+          validate_content_type!
           validate_content_length!(info.offset, info.length)
           validate_upload_offset!(info.offset)
           validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
-          storage.patch_file(uid, input)
+          storage.patch_file(uid, input, info.to_h)
 
           info["Upload-Offset"] = (info.offset + Integer(request.content_length)).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
@@ -137,8 +135,6 @@ module Tus
         end
 
         r.get do
-          info = Tus::Info.new(storage.read_info(uid))
-
           validate_upload_finished!(info.length, info.offset)
           range = handle_range_request!(info.length)
 
@@ -148,7 +144,7 @@ module Tus
           response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
 
-          response = storage.get_file(uid, range: range)
+          response = storage.get_file(uid, info.to_h, range: range)
 
           stream(callback: ->{response.close}) do |out|
             response.each { |chunk| out << chunk }
@@ -156,7 +152,7 @@ module Tus
         end
 
         r.delete do
-          storage.delete_file(uid)
+          storage.delete_file(uid, info.to_h)
 
           no_content!
         end

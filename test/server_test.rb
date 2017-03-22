@@ -582,9 +582,9 @@ describe Tus::Server do
       assert_equal 404, response.status
     end
 
-    it "returns 204 if the file doesn't exist" do
+    it "returns 404 if the file doesn't exist" do
       response = @app.delete "/files/unknown", options
-      assert_equal 204, response.status
+      assert_equal 404, response.status
     end
   end
 
