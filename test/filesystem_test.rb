@@ -20,11 +20,9 @@ describe Tus::Storage::Filesystem do
   end
 
   describe "#create_file" do
-    it "creates new file and info" do
-      @storage.create_file("foo", {"bar" => "baz"})
-      response = @storage.get_file("foo")
-      assert_equal "", response.each.map(&:dup).join
-      assert_equal Hash["bar" => "baz"], @storage.read_info("foo")
+    it "creates new empty file" do
+      @storage.create_file("foo")
+      assert_equal "", @storage.get_file("foo").each.map(&:dup).join
     end
   end
 
@@ -38,21 +36,20 @@ describe Tus::Storage::Filesystem do
       assert_equal "hello world", @storage.get_file("ab").each.map(&:dup).join
     end
 
+    it "returns size of the concatenated file" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      assert_equal 11, @storage.concatenate("ab", ["a", "b"])
+    end
+
     it "deletes concatenated files" do
       @storage.create_file("a")
       @storage.create_file("b")
       @storage.concatenate("ab", ["a", "b"])
       assert_raises(Tus::NotFound) { @storage.get_file("a") }
       assert_raises(Tus::NotFound) { @storage.get_file("b") }
-    end
-
-    it "saves info for the new file" do
-      @storage.create_file("a")
-      @storage.patch_file("a", StringIO.new("hello"))
-      @storage.create_file("b")
-      @storage.patch_file("b", StringIO.new(" world"))
-      @storage.concatenate("ab", ["a", "b"], {"foo" => "bar"})
-      assert_equal Hash["foo" => "bar", "Upload-Length" => "11", "Upload-Offset" => "11"], @storage.read_info("ab")
     end
 
     it "raises an error when parts are missing" do
@@ -84,8 +81,10 @@ describe Tus::Storage::Filesystem do
 
   describe "#read_info" do
     it "retreives the info" do
-      @storage.create_file("foo", {"bar" => "baz"})
-      assert_equal Hash["bar" => "baz"], @storage.read_info("foo")
+      @storage.create_file("foo")
+      assert_equal Hash.new, @storage.read_info("foo")
+      @storage.update_info("foo", {"Foo" => "Bar"})
+      assert_equal Hash["Foo" => "Bar"], @storage.read_info("foo")
     end
 
     it "raises Tus::NotFound on missing file" do
@@ -95,7 +94,8 @@ describe Tus::Storage::Filesystem do
 
   describe "#update_info" do
     it "updates the info" do
-      @storage.create_file("foo", {"bar" => "baz"})
+      @storage.create_file("foo")
+      @storage.update_info("foo", {"bar" => "baz"})
       @storage.update_info("foo", {"quux" => "quilt"})
       assert_equal Hash["quux" => "quilt"], @storage.read_info("foo")
     end
@@ -131,7 +131,8 @@ describe Tus::Storage::Filesystem do
 
   describe "#delete_file" do
     it "deletes files from the filesystem" do
-      @storage.create_file("foo", {"bar" => "baz"})
+      @storage.create_file("foo")
+      @storage.update_info("foo", {"bar" => "baz"})
 
       assert_equal 2, @storage.directory.children.count
 
@@ -150,7 +151,9 @@ describe Tus::Storage::Filesystem do
       time = Time.utc(2017, 3, 12)
 
       @storage.create_file("foo")
+      @storage.update_info("foo", {})
       @storage.create_file("bar")
+      @storage.update_info("bar", {})
       @storage.create_file("baz")
 
       File.utime(time,     time,     @storage.directory.join("foo.file"))

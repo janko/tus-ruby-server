@@ -15,7 +15,6 @@ module Tus
 
       def create_file(uid, info = {})
         open(file_path(uid), "w") { |file| file.write("") }
-        update_info(uid, info)
       end
 
       def concatenate(uid, part_uids, info = {})
@@ -29,10 +28,10 @@ module Tus
           end
         end
 
-        info["Upload-Length"] = info["Upload-Offset"] = file_path(uid).size.to_s
-        update_info(uid, info)
-
         delete(part_uids)
+
+        # server requires us to return the size of the concatenated file
+        file_path(uid).size
       end
 
       def patch_file(uid, io)
@@ -44,7 +43,11 @@ module Tus
       def read_info(uid)
         raise Tus::NotFound if !file_path(uid).exist?
 
-        data = info_path(uid).binread
+        begin
+          data = info_path(uid).binread
+        rescue Errno::ENOENT
+          data = "{}"
+        end
 
         JSON.parse(data)
       end
@@ -81,12 +84,13 @@ module Tus
       end
 
       def expire_files(expiration_date)
+        uids = []
+
         Pathname.glob(directory.join("*.file")).each do |pathname|
-          if pathname.mtime <= expiration_date
-            pathname.delete
-            pathname.sub_ext(".info").delete
-          end
+          uids << pathname.basename(".*") if pathname.mtime <= expiration_date
         end
+
+        delete(uids)
       end
 
       private

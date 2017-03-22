@@ -71,10 +71,14 @@ module Tus
           )
 
           if info.concatenation?
-            storage.concatenate(uid, info.partial_uploads, info.to_h)
+            length = storage.concatenate(uid, info.partial_uploads, info.to_h)
+            info["Upload-Length"] = length.to_s
+            info["Upload-Offset"] = length.to_s
           else
             storage.create_file(uid, info.to_h)
           end
+
+          storage.update_info(uid, info.to_h)
 
           response.headers.update(info.headers)
 

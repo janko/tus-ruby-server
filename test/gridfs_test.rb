@@ -19,10 +19,9 @@ describe Tus::Storage::Gridfs do
   end
 
   describe "#create_file" do
-    it "creates an empty file" do
-      @storage.create_file(uid = "foo", {"Foo" => "Bar"})
+    it "creates a new empty file" do
+      @storage.create_file("foo")
       assert_equal "", @storage.get_file("foo").each.map(&:dup).join
-      assert_equal Hash["Foo" => "Bar"], @storage.read_info("foo")
     end
   end
 
@@ -40,21 +39,20 @@ describe Tus::Storage::Gridfs do
       assert_equal "hello world", @storage.get_file("abcd").each.map(&:dup).join
     end
 
+    it "returns size of the concatenated file" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      assert_equal 11, @storage.concatenate("ab", ["a", "b"])
+    end
+
     it "deletes concatenated files" do
       @storage.create_file("a")
       @storage.create_file("b")
       @storage.concatenate("ab", ["a", "b"])
       assert_raises(Tus::NotFound) { @storage.get_file("a") }
       assert_raises(Tus::NotFound) { @storage.get_file("b") }
-    end
-
-    it "saves info for the new file" do
-      @storage.create_file("a")
-      @storage.patch_file("a", StringIO.new("hello"))
-      @storage.create_file("b")
-      @storage.patch_file("b", StringIO.new(" world"))
-      @storage.concatenate("ab", ["a", "b"], {"foo" => "bar"})
-      assert_equal Hash["foo" => "bar", "Upload-Length" => "11", "Upload-Offset" => "11"], @storage.read_info("ab")
     end
 
     it "raises an error when parts are missing" do
@@ -117,7 +115,8 @@ describe Tus::Storage::Gridfs do
     end
 
     it "raises error on uneven chunks" do
-      @storage.create_file("foo", {"Upload-Length" => "11"})
+      @storage.create_file("foo")
+      @storage.update_info("foo", {"Upload-Length" => "11"})
       @storage.patch_file("foo", StringIO.new("hello"))
       assert_raises(Tus::Error) { @storage.patch_file("foo", StringIO.new(" wo")) }
     end
@@ -190,9 +189,8 @@ describe Tus::Storage::Gridfs do
     it "reads info" do
       @storage.create_file("foo")
       assert_equal Hash.new, @storage.read_info("foo")
-
-      @storage.create_file("bar", {"Foo" => "Bar"})
-      assert_equal Hash["Foo" => "Bar"], @storage.read_info("bar")
+      @storage.update_info("foo", {"Foo" => "Bar"})
+      assert_equal Hash["Foo" => "Bar"], @storage.read_info("foo")
     end
 
     it "raises Tus::NotFound on missing file" do

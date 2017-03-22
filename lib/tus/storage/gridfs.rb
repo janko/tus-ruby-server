@@ -16,7 +16,7 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        file = Mongo::Grid::File.new("", filename: uid, metadata: info, chunk_size: chunk_size)
+        file = Mongo::Grid::File.new("", filename: uid, metadata: {}, chunk_size: chunk_size)
         bucket.insert_one(file)
       end
 
@@ -40,9 +40,7 @@ module Tus
         length     = file_infos.inject(0) { |sum, file_info| sum + file_info[:length] }
         chunk_size = file_infos.first[:chunkSize]
 
-        info["Upload-Length"] = info["Upload-Offset"] = length.to_s
-
-        file = Mongo::Grid::File.new("", filename: uid, metadata: info, chunk_size: chunk_size, length: length)
+        file = Mongo::Grid::File.new("", filename: uid, metadata: {}, chunk_size: chunk_size, length: length)
         bucket.insert_one(file)
 
         file_infos.inject(0) do |offset, file_info|
@@ -54,6 +52,9 @@ module Tus
         end
 
         bucket.files_collection.delete_many(filename: {"$in" => part_uids})
+
+        # server requires us to return the size of the concatenated file
+        length
       end
 
       def patch_file(uid, io)
