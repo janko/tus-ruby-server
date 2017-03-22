@@ -14,11 +14,11 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        open(file_path(uid), "w") { |file| file.write("") }
+        file_path(uid).open("wb") { |file| file.write("") }
       end
 
       def concatenate(uid, part_uids, info = {})
-        open(file_path(uid), "w") do |file|
+        file_path(uid).open("wb") do |file|
           begin
             part_uids.each do |part_uid|
               IO.copy_stream(file_path(part_uid), file)
@@ -37,7 +37,7 @@ module Tus
       def patch_file(uid, io)
         raise Tus::NotFound if !file_path(uid).exist?
 
-        open(file_path(uid), "a") { |file| IO.copy_stream(io, file) }
+        file_path(uid).open("ab") { |file| IO.copy_stream(io, file) }
       end
 
       def read_info(uid)
@@ -53,13 +53,13 @@ module Tus
       end
 
       def update_info(uid, info)
-        open(info_path(uid), "w") { |file| file.write(info.to_json) }
+        info_path(uid).open("wb") { |file| file.write(info.to_json) }
       end
 
       def get_file(uid, range: nil)
         raise Tus::NotFound if !file_path(uid).exist?
 
-        file = file_path(uid).open("r", binmode: true)
+        file = file_path(uid).open("rb")
         range ||= 0..file.size-1
 
         chunks = Enumerator.new do |yielder|
@@ -98,13 +98,6 @@ module Tus
       def delete(uids)
         paths = uids.flat_map { |uid| [file_path(uid), info_path(uid)] }
         FileUtils.rm_f paths
-      end
-
-      def open(pathname, mode, **options)
-        pathname.open(mode, binmode: true, **options) do |file|
-          file.sync = true
-          yield file
-        end
       end
 
       def file_path(uid)
