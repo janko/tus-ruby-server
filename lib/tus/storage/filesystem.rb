@@ -1,5 +1,6 @@
 require "pathname"
 require "json"
+require "fileutils"
 
 module Tus
   module Storage
@@ -14,11 +15,24 @@ module Tus
 
       def create_file(uid, info = {})
         open(file_path(uid), "w") { |file| file.write("") }
-        open(info_path(uid), "w") { |file| file.write(info.to_json) }
+        update_info(uid, info)
       end
 
-      def read_file(uid)
-        file_path(uid).binread
+      def concatenate(uid, part_uids, info = {})
+        open(file_path(uid), "w") do |file|
+          begin
+            part_uids.each do |part_uid|
+              IO.copy_stream(file_path(part_uid), file)
+            end
+          rescue Errno::ENOENT
+            raise Tus::Error, "some parts for concatenation are missing"
+          end
+        end
+
+        info["Upload-Length"] = info["Upload-Offset"] = file_path(uid).size.to_s
+        update_info(uid, info)
+
+        delete(part_uids)
       end
 
       def patch_file(uid, io)
@@ -63,8 +77,7 @@ module Tus
       end
 
       def delete_file(uid)
-        file_path(uid).delete if file_path(uid).exist?
-        info_path(uid).delete if info_path(uid).exist?
+        delete([uid])
       end
 
       def expire_files(expiration_date)
@@ -77,6 +90,11 @@ module Tus
       end
 
       private
+
+      def delete(uids)
+        paths = uids.flat_map { |uid| [file_path(uid), info_path(uid)] }
+        FileUtils.rm_f paths
+      end
 
       def open(pathname, mode, **options)
         pathname.open(mode, binmode: true, **options) do |file|

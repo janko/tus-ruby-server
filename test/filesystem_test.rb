@@ -28,12 +28,35 @@ describe Tus::Storage::Filesystem do
     end
   end
 
-  describe "#read_file" do
-    it "retrieves the file content" do
-      @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
-      assert_equal "hello world", @storage.read_file("foo")
+  describe "#concatenate" do
+    it "creates a new file which is a concatenation of given parts" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      @storage.concatenate("ab", ["a", "b"])
+      assert_equal "hello world", @storage.get_file("ab").each.map(&:dup).join
+    end
+
+    it "deletes concatenated files" do
+      @storage.create_file("a")
+      @storage.create_file("b")
+      @storage.concatenate("ab", ["a", "b"])
+      assert_raises(Tus::NotFound) { @storage.get_file("a") }
+      assert_raises(Tus::NotFound) { @storage.get_file("b") }
+    end
+
+    it "saves info for the new file" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      @storage.concatenate("ab", ["a", "b"], {"foo" => "bar"})
+      assert_equal Hash["foo" => "bar", "Upload-Length" => "11", "Upload-Offset" => "11"], @storage.read_info("ab")
+    end
+
+    it "raises an error when parts are missing" do
+      assert_raises(Tus::Error) { @storage.concatenate("ab", ["a", "b"]) }
     end
   end
 

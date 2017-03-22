@@ -20,9 +20,40 @@ module Tus
         bucket.insert_one(file)
       end
 
-      def read_file(uid)
-        file = bucket.find_one(filename: uid)
-        file.data
+      def concatenate(uid, part_uids, info = {})
+        file_infos = bucket.files_collection.find(filename: {"$in" => part_uids}).to_a
+        file_infos.sort_by! { |file_info| part_uids.index(file_info[:filename]) }
+
+        if file_infos.count != part_uids.count
+          raise Tus::Error, "some parts for concatenation are missing"
+        end
+
+        chunk_sizes = file_infos.map { |file_info| file_info[:chunkSize] }
+        if chunk_sizes[0..-2].uniq.count > 1
+          raise Tus::Error, "some parts have different chunk sizes, so they cannot be concatenated"
+        end
+
+        if chunk_sizes.uniq != [chunk_sizes.last] && bucket.chunks_collection.find(files_id: file_infos.last[:_id]).count > 1
+          raise Tus::Error, "last part has different chunk size and is composed of more than one chunk"
+        end
+
+        length     = file_infos.inject(0) { |sum, file_info| sum + file_info[:length] }
+        chunk_size = file_infos.first[:chunkSize]
+
+        info["Upload-Length"] = info["Upload-Offset"] = length.to_s
+
+        file = Mongo::Grid::File.new("", filename: uid, metadata: info, chunk_size: chunk_size, length: length)
+        bucket.insert_one(file)
+
+        file_infos.inject(0) do |offset, file_info|
+          result = bucket.chunks_collection
+            .find(files_id: file_info[:_id])
+            .update_many("$set" => {files_id: file.id}, "$inc" => {n: offset})
+
+          offset += result.modified_count
+        end
+
+        bucket.files_collection.delete_many(filename: {"$in" => part_uids})
       end
 
       def patch_file(uid, io)
@@ -122,8 +153,8 @@ module Tus
       end
 
       def expire_files(expiration_date)
-        file_info_collection = bucket.files_collection.find(uploadDate: {"$lte" => expiration_date})
-        file_info_ids = file_info_collection.map { |info| info[:_id] }
+        file_infos = bucket.files_collection.find(uploadDate: {"$lte" => expiration_date}).to_a
+        file_info_ids = file_infos.map { |info| info[:_id] }
 
         bucket.files_collection.delete_many(_id: {"$in" => file_info_ids})
         bucket.chunks_collection.delete_many(files_id: {"$in" => file_info_ids})

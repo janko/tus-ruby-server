@@ -7,7 +7,6 @@ require "tus/checksum"
 
 require "securerandom"
 require "time"
-require "stringio"
 
 module Tus
   class Server < Roda
@@ -71,20 +70,10 @@ module Tus
             "Upload-Expires"      => (Time.now + expiration_time).httpdate,
           )
 
-          storage.create_file(uid, info.to_h)
-
-          if info.final_upload?
-            length = info.partial_uploads.inject(0) do |length, partial_uid|
-              content = storage.read_file(partial_uid)
-              storage.patch_file(uid, StringIO.new(content))
-              storage.delete_file(partial_uid)
-              length += content.length
-            end
-
-            info["Upload-Length"] = length.to_s
-            info["Upload-Offset"] = length.to_s
-
-            storage.update_info(uid, info.to_h)
+          if info.concatenation?
+            storage.concatenate(uid, info.partial_uploads, info.to_h)
+          else
+            storage.create_file(uid, info.to_h)
           end
 
           response.headers.update(info.headers)

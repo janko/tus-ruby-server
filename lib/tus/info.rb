@@ -25,11 +25,11 @@ module Tus
     end
 
     def to_h
-      @hash.reject { |key, value| value.nil? }
+      @hash
     end
 
     def headers
-      to_h.select { |key, value| HEADERS.include?(key) }
+      @hash.select { |key, value| HEADERS.include?(key) && !value.nil? }
     end
 
     def length
@@ -48,7 +48,7 @@ module Tus
       Time.parse(@hash["Upload-Expires"])
     end
 
-    def final_upload?
+    def concatenation?
       @hash["Upload-Concat"].to_s.start_with?("final")
     end
 

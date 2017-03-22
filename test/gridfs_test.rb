@@ -21,16 +21,64 @@ describe Tus::Storage::Gridfs do
   describe "#create_file" do
     it "creates an empty file" do
       @storage.create_file(uid = "foo", {"Foo" => "Bar"})
-      assert_equal "", @storage.read_file("foo")
+      assert_equal "", @storage.get_file("foo").each.map(&:dup).join
       assert_equal Hash["Foo" => "Bar"], @storage.read_info("foo")
     end
   end
 
-  describe "#read_file" do
-    it "returns contents of the file" do
-      @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("content"))
-      assert_equal "content", @storage.read_file("foo")
+  describe "#concatenate" do
+    it "creates a new file which is a concatenation of given parts" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hel"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new("lo "))
+      @storage.create_file("c")
+      @storage.patch_file("c", StringIO.new("wor"))
+      @storage.create_file("d")
+      @storage.patch_file("d", StringIO.new("ld"))
+      @storage.concatenate("abcd", ["a", "b", "c", "d"])
+      assert_equal "hello world", @storage.get_file("abcd").each.map(&:dup).join
+    end
+
+    it "deletes concatenated files" do
+      @storage.create_file("a")
+      @storage.create_file("b")
+      @storage.concatenate("ab", ["a", "b"])
+      assert_raises(Tus::NotFound) { @storage.get_file("a") }
+      assert_raises(Tus::NotFound) { @storage.get_file("b") }
+    end
+
+    it "saves info for the new file" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      @storage.concatenate("ab", ["a", "b"], {"foo" => "bar"})
+      assert_equal Hash["foo" => "bar", "Upload-Length" => "11", "Upload-Offset" => "11"], @storage.read_info("ab")
+    end
+
+    it "raises an error when parts are missing" do
+      assert_raises(Tus::Error) { @storage.concatenate("ab", ["a", "b"]) }
+    end
+
+    it "raises an error when parts have different chunk sizes" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hel"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new("lo"))
+      @storage.create_file("c")
+      @storage.patch_file("c", StringIO.new(" world"))
+      assert_raises(Tus::Error) { @storage.concatenate("abc", ["a", "b", "c"]) }
+    end
+
+    it "raises an error when last chunk has different chunk size but multiple chunks" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hel"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new("l"))
+      @storage.create_file("c")
+      @storage.patch_file("c", StringIO.new("o"))
+      assert_raises(Tus::Error) { @storage.concatenate("abc", ["a", "b", "c"]) }
     end
   end
 
@@ -40,7 +88,7 @@ describe Tus::Storage::Gridfs do
       @storage.patch_file("foo", StringIO.new("hello"))
       @storage.patch_file("foo", StringIO.new(" world"))
       assert_equal 3, @storage.bucket.chunks_collection.find.count
-      assert_equal "hello world", @storage.read_file("foo")
+      assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
     end
 
     it "accepts Tus::Input" do
@@ -48,7 +96,7 @@ describe Tus::Storage::Gridfs do
       @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
       @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
       assert_equal 3, @storage.bucket.chunks_collection.find.count
-      assert_equal "hello world", @storage.read_file("foo")
+      assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
     end
 
     it "sets :chunkSize from the input size" do
