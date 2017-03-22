@@ -106,31 +106,6 @@ module Tus
           no_content!
         end
 
-        r.delete do
-          storage.delete_file(uid)
-
-          no_content!
-        end
-
-        r.get do
-          info = Tus::Info.new(storage.read_info(uid))
-
-          validate_upload_finished!(info.length, info.offset)
-          range = handle_range_request!(info.length)
-
-          response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
-
-          metadata = info.metadata
-          response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
-          response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
-
-          response = storage.get_file(uid, range: range)
-
-          stream(callback: ->{response.close}) do |out|
-            response.each { |chunk| out << chunk }
-          end
-        end
-
         r.head do
           info = Tus::Info.new(storage.read_info(uid))
 
@@ -164,6 +139,31 @@ module Tus
 
           storage.update_info(uid, info.to_h)
           response.headers.update(info.headers)
+
+          no_content!
+        end
+
+        r.get do
+          info = Tus::Info.new(storage.read_info(uid))
+
+          validate_upload_finished!(info.length, info.offset)
+          range = handle_range_request!(info.length)
+
+          response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
+
+          metadata = info.metadata
+          response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
+          response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
+
+          response = storage.get_file(uid, range: range)
+
+          stream(callback: ->{response.close}) do |out|
+            response.each { |chunk| out << chunk }
+          end
+        end
+
+        r.delete do
+          storage.delete_file(uid)
 
           no_content!
         end
