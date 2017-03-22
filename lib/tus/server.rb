@@ -87,7 +87,7 @@ module Tus
             storage.update_info(uid, info.to_h)
           end
 
-          response.headers.update(info.to_h)
+          response.headers.update(info.headers)
 
           file_url = "#{request.url.chomp("/")}/#{uid}"
           created!(file_url)
@@ -132,9 +132,9 @@ module Tus
         end
 
         r.head do
-          info = storage.read_info(uid)
+          info = Tus::Info.new(storage.read_info(uid))
 
-          response.headers.update(info.to_h)
+          response.headers.update(info.headers)
           response.headers["Cache-Control"] = "no-store"
 
           no_content!
@@ -163,7 +163,7 @@ module Tus
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           storage.update_info(uid, info.to_h)
-          response.headers.update(info.to_h)
+          response.headers.update(info.headers)
 
           no_content!
         end

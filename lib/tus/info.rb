@@ -3,6 +3,15 @@ require "time"
 
 module Tus
   class Info
+    HEADERS = %w[
+      Upload-Length
+      Upload-Offset
+      Upload-Defer-Length
+      Upload-Metadata
+      Upload-Concat
+      Upload-Expires
+    ]
+
     def initialize(hash)
       @hash = hash
     end
@@ -17,6 +26,10 @@ module Tus
 
     def to_h
       @hash.reject { |key, value| value.nil? }
+    end
+
+    def headers
+      to_h.select { |key, value| HEADERS.include?(key) }
     end
 
     def length
