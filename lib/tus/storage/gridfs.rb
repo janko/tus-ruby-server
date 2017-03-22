@@ -35,9 +35,9 @@ module Tus
 
         tus_info = Tus::Info.new(file_info.metadata)
 
-        unless io.size % file_info.chunk_size == 0 ||        # IO fits into chunks
-               tus_info.length.nil? ||                       # Unknown length
-               file_info.length + io.size == tus_info.length # Last chunk
+        unless io.size % file_info.chunk_size == 0 ||        # content fits into chunks
+               tus_info.length.nil? ||                       # unknown length
+               file_info.length + io.size == tus_info.length # last chunk
 
           raise Tus::Error,
             "Input has length #{io.size} but expected it to be a multiple of" \
