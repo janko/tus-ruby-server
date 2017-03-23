@@ -1,5 +1,5 @@
-require "tus/info"
 require "mongo"
+require "tus/info"
 require "digest"
 
 module Tus

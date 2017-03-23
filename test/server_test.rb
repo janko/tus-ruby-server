@@ -1,5 +1,7 @@
 require "test_helper"
+
 require "rack/test_app"
+
 require "fileutils"
 require "base64"
 require "uri"

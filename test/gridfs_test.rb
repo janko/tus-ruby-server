@@ -1,5 +1,8 @@
 require "test_helper"
 require "tus/storage/gridfs"
+
+require "mongo"
+
 require "logger"
 require "stringio"
 require "base64"
