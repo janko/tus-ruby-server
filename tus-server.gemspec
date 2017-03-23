@@ -20,4 +20,6 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency "minitest", "~> 5.8"
   gem.add_development_dependency "rack-test_app"
   gem.add_development_dependency "mongo"
+  gem.add_development_dependency "aws-sdk", "~> 2.0"
+  gem.add_development_dependency "dotenv"
 end
