@@ -23,6 +23,7 @@ module Tus
 
     opts[:max_size]        = 1024*1024*1024
     opts[:expiration_time] = 7*24*60*60
+    opts[:disposition]     = "inline"
 
     plugin :all_verbs
     plugin :delete_empty_headers
@@ -141,7 +142,8 @@ module Tus
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
           metadata = info.metadata
-          response.headers["Content-Disposition"] = "attachment; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
+          response.headers["Content-Disposition"] = opts[:disposition]
+          response.headers["Content-Disposition"] << "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
 
           response = storage.get_file(uid, info.to_h, range: range)

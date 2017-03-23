@@ -524,6 +524,10 @@ describe Tus::Server do
       )
       response = @app.get file_path
       assert_equal "image/jpeg", response.headers["Content-Type"]
+      assert_equal "inline; filename=\"image.jpg\"", response.headers["Content-Disposition"]
+
+      @server.opts[:disposition] = "attachment"
+      response = @app.get file_path
       assert_equal "attachment; filename=\"image.jpg\"", response.headers["Content-Disposition"]
     end
 

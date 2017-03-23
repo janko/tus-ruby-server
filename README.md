@@ -49,17 +49,6 @@ see [shrine-tus-demo] on how you can integrate the two.
 Tus-ruby-server accepts various configuration options via `Tus::Server.opts`,
 and it's probably best to modify that before `run Tus::Server`.
 
-### Metadata
-
-As per tus protocol, you can assign custom metadata when creating a file using
-the `Upload-Metadata` header, or the `:metadata` option in tus-js-client. When
-retrieving the file via a GET request, tus-ruby-server will use
-
-* `content_type` -- for setting the `Content-Type` header
-* `filename` -- for setting the `Content-Disposition` header
-
-Both of these are optional, and will be used if available.
-
 ### Storage
 
 By default `Tus::Server` saves partial and complete files on the filesystem,
@@ -130,6 +119,22 @@ The following checksum algorithms are supported for the `checksum` extension:
 * SHA512
 * MD5
 * CRC32
+
+### Download
+
+Tus-ruby-server offers an endpoint for downloading the uploaded file, which
+will automatically use the following `Upload-Metadata` values if they're
+available:
+
+* `content_type` -- for setting the `Content-Type` header
+* `filename` -- for setting the `Content-Disposition` header
+
+The `Content-Disposition` header will be set to "inline" by default, but you
+can change it to "attachment" if you want the browser to always force download:
+
+```rb
+Tus::Server.opts[:disposition] = "attachment"
+```
 
 ## Limitations
 
