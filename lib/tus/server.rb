@@ -249,9 +249,8 @@ module Tus
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
       error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
 
-      unless Tus::Checksum.new(algorithm).match?(checksum, input)
-        error!(460, "Checksum from Upload-Checksum header doesn't match generated")
-      end
+      generated_checksum = Tus::Checksum.generate(algorithm, input)
+      error!(460, "Checksum from Upload-Checksum header doesn't match generated") if generated_checksum != checksum
     end
 
     # "Range" header handling logic copied from Rack::File

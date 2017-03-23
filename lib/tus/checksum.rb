@@ -6,12 +6,15 @@ module Tus
   class Checksum
     attr_reader :algorithm
 
+    def self.generate(algorithm, input)
+      new(algorithm).generate(input)
+    end
+
     def initialize(algorithm)
       @algorithm = algorithm
     end
 
     def match?(checksum, io)
-      checksum = Base64.decode64(checksum)
       generate(io) == checksum
     end
 
@@ -46,13 +49,13 @@ module Tus
     def generate_crc32(io)
       crc = nil
       crc = Zlib.crc32(io.read(16*1024, buffer ||= "").to_s, crc) until io.eof?
-      crc.to_s
+      Base64.encode64(crc.to_s)
     end
 
     def digest(name, io)
       digest = Digest.const_get(name).new
       digest.update(io.read(16*1024, buffer ||= "").to_s) until io.eof?
-      digest.hexdigest
+      digest.base64digest
     end
   end
 end
