@@ -92,6 +92,8 @@ module Tus
 
         info.delete("multipart_id")
         info.delete("multipart_parts")
+
+        client.head_object(bucket: bucket.name, key: object(uid).key).content_length
       rescue
         abort_multipart_upload(multipart_upload) if multipart_upload
         raise

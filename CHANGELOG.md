@@ -1,3 +1,7 @@
+## 0.9.1 (2017-03-24)
+
+* Fix `Tus::Storage::S3` not properly supporting the concatenation feature.
+
 ## 0.9.0 (2017-03-24)
 
 * Add Amazon S3 storage under `Tus::Storage::S3`.

@@ -81,7 +81,10 @@ describe Tus::Storage::S3 do
       "Upload-Offset" => "0",
     }
 
-    @storage.concatenate("foo", ["part"], info)
+    result = @storage.concatenate("foo", ["part"], info)
+
+    assert_equal 11, result
+
     assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
     response = @storage.bucket.object("foo").get
     assert_equal "text/plain", response.content_type
