@@ -291,7 +291,7 @@ So, depending on your requirements, you might want to avoid displaying the
 uploaded file in the browser (making the user download the file directly from
 the tus server), until it has been moved to a permanent storage. You might also
 want to consider copying finished uploads to permanent storage directly from
-the underlying tus storage, instead of downloading it through the app.
+the underlying tus storage, instead of downloading them through the app.
 
 ## Inspiration
 
