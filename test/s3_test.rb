@@ -53,7 +53,7 @@ describe Tus::Storage::S3 do
     multipart_upload = @storage.bucket.object("foo").multipart_upload(info["multipart_id"])
     assert_equal [], multipart_upload.parts.to_a
 
-    @storage.patch_file("foo", StringIO.new("file"), info)
+    @storage.patch_file("foo", Tus::Input.new(StringIO.new("file")), info)
 
     response = @storage.bucket.object("foo").get
     assert_equal "text/plain", response.content_type

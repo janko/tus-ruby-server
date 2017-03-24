@@ -7,7 +7,7 @@ module Tus
 
     def read(*args)
       result = @input.read(*args)
-      @bytes_read += result.size if result.is_a?(String)
+      @bytes_read += result.bytesize if result.is_a?(String)
       result
     end
 
