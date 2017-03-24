@@ -1,3 +1,5 @@
+require "tus/errors"
+
 require "pathname"
 require "json"
 require "fileutils"

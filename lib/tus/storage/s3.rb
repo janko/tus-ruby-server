@@ -2,6 +2,7 @@ require "aws-sdk"
 
 require "tus/info"
 require "tus/checksum"
+require "tus/errors"
 
 require "json"
 require "cgi/util"

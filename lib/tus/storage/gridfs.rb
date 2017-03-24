@@ -1,5 +1,8 @@
 require "mongo"
+
 require "tus/info"
+require "tus/errors"
+
 require "digest"
 
 module Tus

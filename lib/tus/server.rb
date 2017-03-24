@@ -4,6 +4,7 @@ require "tus/storage/filesystem"
 require "tus/info"
 require "tus/input"
 require "tus/checksum"
+require "tus/errors"
 
 require "securerandom"
 require "time"
