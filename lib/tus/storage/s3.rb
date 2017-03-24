@@ -96,7 +96,12 @@ module Tus
       end
 
       def patch_file(uid, io, info = {})
-        raise Tus::Error, "Chunk size cannot be smaller than 5MB" if io.size < MIN_PART_SIZE
+        tus_info = Tus::Info.new(info)
+        last_chunk = (tus_info.length && io.size == tus_info.remaining_length)
+
+        if io.size < MIN_PART_SIZE && !last_chunk
+          raise Tus::Error, "Chunk size cannot be smaller than 5MB"
+        end
 
         upload_id   = info["multipart_id"]
         part_number = info["multipart_parts"].count + 1
@@ -116,10 +121,8 @@ module Tus
           "etag"        => response.etag[/"(.+)"/, 1],
         }
 
-        tus_info = Tus::Info.new(info)
-
         # finalize the multipart upload if this chunk was the last part
-        if tus_info.length && tus_info.offset + io.size == tus_info.length
+        if last_chunk
           multipart_upload.complete(
             multipart_upload: {
               parts: info["multipart_parts"].map do |part|
