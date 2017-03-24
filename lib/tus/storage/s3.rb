@@ -118,7 +118,7 @@ module Tus
         tus_info = Tus::Info.new(info)
 
         # finalize the multipart upload if this chunk was the last part
-        if tus_info.offset + io.size == tus_info.length
+        if tus_info.length && tus_info.offset + io.size == tus_info.length
           multipart_upload.complete(
             multipart_upload: {
               parts: info["multipart_parts"].map do |part|
