@@ -203,9 +203,9 @@ Tus::Server.opts[:storage].expire_files(expiration_date)
 
 ## Download
 
-In addition to implementing the tus protocol, tus-ruby-server also comes with
-an endpoint for downloading the uploaded file, streaming the file directly from
-the storage.
+In addition to implementing the tus protocol, tus-ruby-server also comes with a
+GET endpoint for downloading the uploaded file, which streams the file directly
+from the storage.
 
 The endpoint will automatically use the following `Upload-Metadata` values if
 they're available:
