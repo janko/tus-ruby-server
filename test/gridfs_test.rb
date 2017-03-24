@@ -101,16 +101,16 @@ describe Tus::Storage::Gridfs do
   describe "#patch_file" do
     it "appends to the content" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
+      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
       assert_equal 3, @storage.bucket.chunks_collection.find.count
       assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
     end
 
     it "accepts Tus::Input" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
-      @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind), {"Upload-Length" => "11", "Upload-Offset" => "5"})
       assert_equal 3, @storage.bucket.chunks_collection.find.count
       assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
     end
@@ -134,9 +134,8 @@ describe Tus::Storage::Gridfs do
 
     it "raises error on uneven chunks" do
       @storage.create_file("foo")
-      @storage.update_info("foo", {"Upload-Length" => "11"})
       @storage.patch_file("foo", StringIO.new("hello"))
-      assert_raises(Tus::Error) { @storage.patch_file("foo", StringIO.new(" wo")) }
+      assert_raises(Tus::Error) { @storage.patch_file("foo", StringIO.new(" wo"), {"Upload-Length" => "11", "Upload-Offset" => "5"}) }
     end
 
     it "updates :length and :uploadDate" do
@@ -157,7 +156,7 @@ describe Tus::Storage::Gridfs do
     it "returns the response that responds to #each" do
       @storage = gridfs(chunk_size: 2)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello world"))
+      @storage.patch_file("foo", StringIO.new("hello world"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
       response = @storage.get_file("foo")
       assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.map(&:dup)
       response.close
@@ -166,7 +165,7 @@ describe Tus::Storage::Gridfs do
     it "supports partial responses" do
       @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello world"))
+      @storage.patch_file("foo", StringIO.new("hello world"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
 
       response = @storage.get_file("foo", range: 0..11)
       assert_equal ["hel", "lo ", "wor", "ld"], response.each.map(&:dup)
@@ -186,8 +185,8 @@ describe Tus::Storage::Gridfs do
   describe "#delete_file" do
     it "deletes info and chunks" do
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
+      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
 
       assert_equal 1, @storage.bucket.files_collection.find.count
       assert_equal 3, @storage.bucket.chunks_collection.find.count
@@ -229,18 +228,18 @@ describe Tus::Storage::Gridfs do
       time = Time.utc(2017, 3, 12)
 
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      @storage.patch_file("foo", StringIO.new(" world"))
+      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
       @storage.bucket.files_collection.find(filename: "foo").update_one("$set" => {uploadDate: time})
 
       @storage.create_file("bar")
-      @storage.patch_file("bar", StringIO.new("hello"))
-      @storage.patch_file("bar", StringIO.new(" world"))
+      @storage.patch_file("bar", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("bar", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
       @storage.bucket.files_collection.find(filename: "bar").update_one("$set" => {uploadDate: time - 1})
 
       @storage.create_file("baz")
-      @storage.patch_file("baz", StringIO.new("hello"))
-      @storage.patch_file("baz", StringIO.new(" world"))
+      @storage.patch_file("baz", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("baz", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
       @storage.bucket.files_collection.find(filename: "baz").update_one("$set" => {uploadDate: time - 2})
 
       @storage.expire_files(time - 1)

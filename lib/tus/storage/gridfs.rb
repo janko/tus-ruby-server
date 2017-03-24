@@ -86,14 +86,12 @@ module Tus
         file_info[:chunkSize] ||= io.size
         file_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(file_info, Mongo::Grid::File::Info::MAPPINGS.invert))
 
-        tus_info = Tus::Info.new(file_info.metadata)
+        tus_info = Tus::Info.new(info)
+        last_chunk = (tus_info.length && io.size == tus_info.remaining_length)
 
-        unless io.size % file_info.chunk_size == 0 ||        # content fits into chunks
-               tus_info.length.nil? ||                       # unknown length
-               file_info.length + io.size == tus_info.length # last chunk
-
+        if io.size % file_info.chunk_size != 0 && !last_chunk
           raise Tus::Error,
-            "Input has length #{io.size} but expected it to be a multiple of" \
+            "Input has length #{io.size} but expected it to be a multiple of " \
             "chunk size #{file_info.chunk_size} or for it to be the last chunk"
         end
 
