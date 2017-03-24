@@ -7,6 +7,8 @@ require "tus/errors"
 require "json"
 require "cgi/util"
 
+Aws.eager_autoload!(services: ["S3"])
+
 module Tus
   module Storage
     class S3
