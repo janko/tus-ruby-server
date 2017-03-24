@@ -1,10 +1,10 @@
 Gem::Specification.new do |gem|
   gem.name         = "tus-server"
-  gem.version      = "0.2.0"
+  gem.version      = "0.9.0"
 
   gem.required_ruby_version = ">= 2.1"
 
-  gem.summary      = "Ruby server implementation of the Open Protocol for Resumable File Uploads."
+  gem.summary      = "Ruby server implementation of tus.io, the open protocol for resumable file uploads."
 
   gem.homepage     = "https://github.com/janko-m/tus-ruby-server"
   gem.authors      = ["Janko Marohnić"]
