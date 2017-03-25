@@ -59,7 +59,10 @@ describe Tus::Storage::S3 do
     assert_equal "text/plain", response.content_type
     assert_equal "inline; filename=\"foo.txt\"", response.content_disposition
 
-    assert_equal "file", @storage.get_file("foo", info).each.map(&:dup).join
+    response = @storage.get_file("foo", info)
+    assert_equal "file", response.each.map(&:dup).join
+    assert_equal 4,      response.length
+
     assert_equal "fi", @storage.get_file("foo", info, range: 0..1).each.map(&:dup).join
 
     @storage.delete_file("foo", info)

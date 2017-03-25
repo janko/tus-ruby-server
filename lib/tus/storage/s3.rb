@@ -156,8 +156,10 @@ module Tus
           range = "bytes=#{range.begin}-#{range.end}"
         end
 
+        object = object(uid)
+
         raw_chunks = Enumerator.new do |yielder|
-          object(uid).get(range: range) do |chunk|
+          object.get(range: range) do |chunk|
             yielder << chunk
             chunk.clear # deallocate string
           end
@@ -174,7 +176,10 @@ module Tus
           loop { yielder << raw_chunks.next }
         end
 
-        Response.new(chunks: chunks)
+        Response.new(
+          chunks: chunks,
+          length: object.content_length,
+        )
       end
 
       def delete_file(uid, info = {})
@@ -231,8 +236,13 @@ module Tus
       end
 
       class Response
-        def initialize(chunks:)
+        def initialize(chunks:, length:)
           @chunks = chunks
+          @length = length
+        end
+
+        def length
+          @length
         end
 
         def each(&block)

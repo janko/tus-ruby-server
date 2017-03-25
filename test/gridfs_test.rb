@@ -153,12 +153,13 @@ describe Tus::Storage::Gridfs do
   end
 
   describe "#get_file" do
-    it "returns the response that responds to #each" do
+    it "returns a chunked response" do
       @storage = gridfs(chunk_size: 2)
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("hello world"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
       response = @storage.get_file("foo")
       assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.map(&:dup)
+      assert_equal 11, response.length
       response.close
     end
 

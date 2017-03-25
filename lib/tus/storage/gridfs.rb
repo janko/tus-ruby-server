@@ -164,7 +164,17 @@ module Tus
           end
         end
 
-        Response.new(chunks: chunks, close: ->{chunks_view.close_query})
+        if range
+          length = range.end - range.begin + 1
+        else
+          length = file_info[:length]
+        end
+
+        Response.new(
+          chunks: chunks,
+          length: length,
+          close:  ->{chunks_view.close_query},
+        )
       end
 
       def delete_file(uid, info = {})
@@ -181,9 +191,14 @@ module Tus
       end
 
       class Response
-        def initialize(chunks:, close:)
+        def initialize(chunks:, close:, length:)
           @chunks = chunks
           @close  = close
+          @length = length
+        end
+
+        def length
+          @length
         end
 
         def each(&block)

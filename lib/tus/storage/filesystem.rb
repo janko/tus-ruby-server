@@ -63,10 +63,10 @@ module Tus
 
         file = file_path(uid).open("rb")
         range ||= 0..file.size-1
+        remaining_length = range.end - range.begin + 1
 
         chunks = Enumerator.new do |yielder|
           file.seek(range.begin)
-          remaining_length = range.end - range.begin + 1
           buffer = ""
 
           while remaining_length > 0
@@ -78,7 +78,11 @@ module Tus
           end
         end
 
-        Response.new(chunks: chunks, close: ->{file.close})
+        Response.new(
+          chunks: chunks,
+          length: remaining_length,
+          close:  ->{file.close},
+        )
       end
 
       def delete_file(uid, info = {})
@@ -116,9 +120,14 @@ module Tus
       end
 
       class Response
-        def initialize(chunks:, close:)
+        def initialize(chunks:, close:, length:)
           @chunks = chunks
           @close  = close
+          @length = length
+        end
+
+        def length
+          @length
         end
 
         def each(&block)
