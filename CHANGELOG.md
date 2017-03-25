@@ -4,6 +4,8 @@
 
 * Don't infer `:chunkSize` from first uploaded chunk in `Tus::Storage::Gridfs`
 
+* Add `#length` to `Response` objects returned from `Storage#get_file`
+
 ## 0.9.1 (2017-03-24)
 
 * Fix `Tus::Storage::S3` not properly supporting the concatenation feature.
