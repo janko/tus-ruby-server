@@ -30,8 +30,14 @@ describe Tus::Storage::Gridfs do
 
     it "stores content type" do
       @storage.create_file("foo", {"Upload-Metadata" => "content_type #{Base64.encode64("image/jpeg")}"})
-      file_info = @storage.bucket.files_collection.find.first
-      assert_equal "image/jpeg", file_info[:contentType]
+      grid_info = @storage.bucket.files_collection.find.first
+      assert_equal "image/jpeg", grid_info[:contentType]
+    end
+
+    it "sets chunk size to nil" do
+      @storage.create_file("foo")
+      grid_info = @storage.bucket.files_collection.find.first
+      assert_nil grid_info[:chunkSize]
     end
   end
 
@@ -61,8 +67,8 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("a")
       @storage.create_file("b")
       @storage.concatenate("ab", ["a", "b"], {"Upload-Metadata" => "content_type #{Base64.encode64("image/jpeg")}"})
-      file_info = @storage.bucket.files_collection.find.first
-      assert_equal "image/jpeg", file_info[:contentType]
+      grid_info = @storage.bucket.files_collection.find.first
+      assert_equal "image/jpeg", grid_info[:contentType]
     end
 
     it "deletes concatenated files" do
@@ -222,6 +228,10 @@ describe Tus::Storage::Gridfs do
       @storage.update_info("foo", {"Bar" => "Bar"})
       assert_equal Hash["Bar" => "Bar"], @storage.read_info("foo")
     end
+
+    it "raises Tus::NotFound on missing file" do
+      assert_raises(Tus::NotFound) { @storage.update_info("unknown", {}) }
+    end
   end
 
   describe "#expire_files" do
@@ -248,11 +258,11 @@ describe Tus::Storage::Gridfs do
       assert_equal 1, @storage.bucket.files_collection.find.count
       assert_equal 3, @storage.bucket.chunks_collection.find.count
 
-      file_info = @storage.bucket.files_collection.find.first
-      assert_equal "foo", file_info[:filename]
+      grid_info = @storage.bucket.files_collection.find.first
+      assert_equal "foo", grid_info[:filename]
 
       chunks = @storage.bucket.chunks_collection.find
-      chunks.each { |chunk| assert_equal file_info[:_id], chunk[:files_id] }
+      chunks.each { |chunk| assert_equal grid_info[:_id], chunk[:files_id] }
       assert_equal "hello world", chunks.map { |chunk| chunk[:data].data }.join
     end
   end
