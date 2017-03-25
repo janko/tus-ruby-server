@@ -125,6 +125,11 @@ describe Tus::Storage::Filesystem do
       assert_equal "a" * 16*1024 + "b" * 3, response.each.map(&:dup).join
     end
 
+    it "handles multibyte characters" do
+      @storage.create_file("foo")
+      @storage.patch_file("foo", StringIO.new("😃"))
+    end
+
     it "raises Tus::NotFound on missing file" do
       assert_raises(Tus::NotFound) { @storage.get_file("unknown") }
     end
