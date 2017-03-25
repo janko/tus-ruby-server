@@ -10,7 +10,7 @@ module Tus
     class Gridfs
       attr_reader :client, :prefix, :bucket, :chunk_size
 
-      def initialize(client:, prefix: "fs", chunk_size: nil)
+      def initialize(client:, prefix: "fs", chunk_size: 256*1024)
         @client = client
         @prefix = prefix
         @bucket = @client.database.fs(bucket_name: @prefix)
@@ -19,8 +19,7 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        tus_info     = Tus::Info.new(info)
-        content_type = tus_info.metadata["content_type"]
+        content_type = Tus::Info.new(info).metadata["content_type"]
 
         create_grid_file(
           filename:     uid,
@@ -35,13 +34,10 @@ module Tus
         validate_parts!(grid_infos, part_uids)
 
         length       = grid_infos.map { |doc| doc[:length] }.reduce(0, :+)
-        chunk_size   = grid_infos.first[:chunkSize]
-        tus_info     = Tus::Info.new(info)
-        content_type = tus_info.metadata["content_type"]
+        content_type = Tus::Info.new(info).metadata["content_type"]
 
         grid_file = create_grid_file(
           filename:     uid,
-          chunk_size:   chunk_size,
           length:       length,
           content_type: content_type,
         )
@@ -63,15 +59,13 @@ module Tus
       def patch_file(uid, input, info = {})
         grid_info = find_grid_info!(uid)
 
-        grid_info[:chunkSize] ||= input.size
-        validate_input_length!(input, grid_info, info)
+        patch_last_chunk(input, grid_info)
 
         grid_chunks = split_into_grid_chunks(input, grid_info)
         chunks_collection.insert_many(grid_chunks)
         grid_chunks.each { |grid_chunk| grid_chunk.data.data.clear } # deallocate strings
 
         files_collection.find(filename: uid).update_one("$set" => {
-          chunkSize:  grid_info[:chunkSize],
           length:     grid_info[:length] + input.size,
           uploadDate: Time.now.utc,
         })
@@ -100,7 +94,7 @@ module Tus
 
         filter = {
           files_id: grid_info[:_id],
-          n: {"gte" => chunk_start, "$lte" => chunk_stop}
+          n: {"$gte" => chunk_start, "$lte" => chunk_stop}
         }
 
         chunks_view = chunks_collection.find(filter).sort(n: 1)
@@ -169,24 +163,26 @@ module Tus
         Mongo::Grid::File::Chunk.split(io, grid_info, offset)
       end
 
+      def patch_last_chunk(input, grid_info)
+        if grid_info[:length] % grid_info[:chunkSize] != 0
+          last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).first
+          data = last_chunk[:data].data
+          data << input.read(grid_info[:chunkSize] - data.length)
+
+          chunks_collection.find(files_id: grid_info[:_id], n: last_chunk[:n])
+            .update_one("$set" => {data: BSON::Binary.new(data)})
+
+          data.clear # deallocate string
+        end
+      end
+
       def find_grid_info!(uid)
         files_collection.find(filename: uid).first or raise Tus::NotFound
       end
 
-      def validate_input_length!(input, grid_info, info)
-        tus_info = Tus::Info.new(info)
-        last_chunk = (tus_info.length && input.size == tus_info.remaining_length)
-
-        if input.size % grid_info[:chunkSize] != 0 && !last_chunk
-          raise Tus::Error,
-            "Input has length #{input.size} but expected it to be a multiple of " \
-            "chunk size #{grid_info[:chunkSize]} or for it to be the last chunk"
-        end
-      end
-
       def validate_parts!(grid_infos, part_uids)
         validate_parts_presence!(grid_infos, part_uids)
-        validate_parts_chunk_sizes!(grid_infos)
+        validate_parts_full_chunks!(grid_infos)
       end
 
       def validate_parts_presence!(grid_infos, part_uids)
@@ -195,13 +191,11 @@ module Tus
         end
       end
 
-      def validate_parts_chunk_sizes!(grid_infos)
-        chunk_sizes = grid_infos.map { |doc| doc[:chunkSize] }
-
-        if chunk_sizes[0..-2].uniq.count > 1
-          raise Tus::Error, "some parts have different chunk sizes and they cannot be concatenated"
-        elsif chunk_sizes.uniq.count > 1 && chunks_collection.count(files_id: grid_infos.last[:_id]) > 1
-          raise Tus::Error, "last part has different chunk size and is composed of more than one chunk"
+      def validate_parts_full_chunks!(grid_infos)
+        grid_infos.each do |grid_info|
+          if grid_info[:length] % grid_info[:chunkSize] != 0 && grid_info != grid_infos.last
+            raise Tus::Error, "cannot concatenate parts which aren't evenly distributed across chunks"
+          end
         end
       end
 

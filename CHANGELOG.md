@@ -1,3 +1,9 @@
+## HEAD
+
+* Don't require length of uploaded chunks to be a multiple of `:chunkSize` in `Tus::Storage::Gridfs`
+
+* Don't infer `:chunkSize` from first uploaded chunk in `Tus::Storage::Gridfs`
+
 ## 0.9.1 (2017-03-24)
 
 * Fix `Tus::Storage::S3` not properly supporting the concatenation feature.

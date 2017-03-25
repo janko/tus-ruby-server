@@ -34,15 +34,17 @@ describe Tus::Storage::Gridfs do
       assert_equal "image/jpeg", grid_info[:contentType]
     end
 
-    it "sets chunk size to nil" do
+    it "sets the chunk size" do
+      @storage = gridfs(chunk_size: 10)
       @storage.create_file("foo")
       grid_info = @storage.bucket.files_collection.find.first
-      assert_nil grid_info[:chunkSize]
+      assert_equal 10, grid_info[:chunkSize]
     end
   end
 
   describe "#concatenate" do
     it "creates a new file which is a concatenation of given parts" do
+      @storage = gridfs(chunk_size: 3)
       @storage.create_file("a")
       @storage.patch_file("a", StringIO.new("hel"))
       @storage.create_file("b")
@@ -52,10 +54,11 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("d")
       @storage.patch_file("d", StringIO.new("ld"))
       @storage.concatenate("abcd", ["a", "b", "c", "d"])
-      assert_equal "hello world", @storage.get_file("abcd").each.map(&:dup).join
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("abcd").each.map(&:dup)
     end
 
     it "returns size of the concatenated file" do
+      @storage = gridfs(chunk_size: 5)
       @storage.create_file("a")
       @storage.patch_file("a", StringIO.new("hello"))
       @storage.create_file("b")
@@ -83,7 +86,8 @@ describe Tus::Storage::Gridfs do
       assert_raises(Tus::Error) { @storage.concatenate("ab", ["a", "b"]) }
     end
 
-    it "raises an error when parts have different chunk sizes" do
+    it "raises an error when parts don't have full chunks" do
+      @storage = gridfs(chunk_size: 3)
       @storage.create_file("a")
       @storage.patch_file("a", StringIO.new("hel"))
       @storage.create_file("b")
@@ -92,56 +96,23 @@ describe Tus::Storage::Gridfs do
       @storage.patch_file("c", StringIO.new(" world"))
       assert_raises(Tus::Error) { @storage.concatenate("abc", ["a", "b", "c"]) }
     end
-
-    it "raises an error when last chunk has different chunk size but multiple chunks" do
-      @storage.create_file("a")
-      @storage.patch_file("a", StringIO.new("hel"))
-      @storage.create_file("b")
-      @storage.patch_file("b", StringIO.new("l"))
-      @storage.create_file("c")
-      @storage.patch_file("c", StringIO.new("o"))
-      assert_raises(Tus::Error) { @storage.concatenate("abc", ["a", "b", "c"]) }
-    end
   end
 
   describe "#patch_file" do
-    it "appends to the content" do
+    it "appends content" do
+      @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
-      assert_equal 3, @storage.bucket.chunks_collection.find.count
-      assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.map(&:dup)
     end
 
     it "accepts Tus::Input" do
+      @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")
-      @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind), {"Upload-Length" => "11", "Upload-Offset" => "5"})
-      assert_equal 3, @storage.bucket.chunks_collection.find.count
-      assert_equal "hello world", @storage.get_file("foo").each.map(&:dup).join
-    end
-
-    it "sets :chunkSize from the input size" do
-      @storage.create_file("foo")
-      assert_nil @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
-      @storage.patch_file("foo", StringIO.new("hello"))
-      assert_equal 5, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
-      assert_equal 1, @storage.bucket.chunks_collection.find.count
-    end
-
-    it "allow setting :chunkSize in initializer" do
-      @storage = gridfs(chunk_size: 1)
-      @storage.create_file("foo")
-      assert_equal 1, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
-      @storage.patch_file("foo", StringIO.new("hello"))
-      assert_equal 1, @storage.bucket.files_collection.find(filename: "foo").first[:chunkSize]
-      assert_equal 5, @storage.bucket.chunks_collection.find.count
-    end
-
-    it "raises error on uneven chunks" do
-      @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"))
-      assert_raises(Tus::Error) { @storage.patch_file("foo", StringIO.new(" wo"), {"Upload-Length" => "11", "Upload-Offset" => "5"}) }
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
+      @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.map(&:dup)
     end
 
     it "updates :length and :uploadDate" do
@@ -162,7 +133,7 @@ describe Tus::Storage::Gridfs do
     it "returns a chunked response" do
       @storage = gridfs(chunk_size: 2)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello world"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", StringIO.new("hello world"))
       response = @storage.get_file("foo")
       assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.map(&:dup)
       assert_equal 11, response.length
@@ -172,7 +143,7 @@ describe Tus::Storage::Gridfs do
     it "supports partial responses" do
       @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello world"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
+      @storage.patch_file("foo", StringIO.new("hello world"))
 
       response = @storage.get_file("foo", range: 0..11)
       assert_equal ["hel", "lo ", "wor", "ld"], response.each.map(&:dup)
@@ -191,9 +162,10 @@ describe Tus::Storage::Gridfs do
 
   describe "#delete_file" do
     it "deletes info and chunks" do
+      @storage = gridfs(chunk_size: 5)
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
 
       assert_equal 1, @storage.bucket.files_collection.find.count
       assert_equal 3, @storage.bucket.chunks_collection.find.count
@@ -236,21 +208,22 @@ describe Tus::Storage::Gridfs do
 
   describe "#expire_files" do
     it "deletes files past the given expiration date" do
+      @storage = gridfs(chunk_size: 5)
       time = Time.utc(2017, 3, 12)
 
       @storage.create_file("foo")
-      @storage.patch_file("foo", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("foo", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
+      @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
       @storage.bucket.files_collection.find(filename: "foo").update_one("$set" => {uploadDate: time})
 
       @storage.create_file("bar")
-      @storage.patch_file("bar", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("bar", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
+      @storage.patch_file("bar", StringIO.new("hello"))
+      @storage.patch_file("bar", StringIO.new(" world"))
       @storage.bucket.files_collection.find(filename: "bar").update_one("$set" => {uploadDate: time - 1})
 
       @storage.create_file("baz")
-      @storage.patch_file("baz", StringIO.new("hello"), {"Upload-Length" => "11", "Upload-Offset" => "0"})
-      @storage.patch_file("baz", StringIO.new(" world"), {"Upload-Length" => "11", "Upload-Offset" => "5"})
+      @storage.patch_file("baz", StringIO.new("hello"))
+      @storage.patch_file("baz", StringIO.new(" world"))
       @storage.bucket.files_collection.find(filename: "baz").update_one("$set" => {uploadDate: time - 2})
 
       @storage.expire_files(time - 1)
