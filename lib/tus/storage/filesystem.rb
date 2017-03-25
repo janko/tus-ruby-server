@@ -16,71 +16,70 @@ module Tus
       end
 
       def create_file(uid, info = {})
-        file_path(uid).open("wb") { |file| file.write("") }
+        file_path(uid).binwrite("")
+        info_path(uid).binwrite("{}")
       end
 
       def concatenate(uid, part_uids, info = {})
         file_path(uid).open("wb") do |file|
-          begin
-            part_uids.each do |part_uid|
+          part_uids.each do |part_uid|
+            # Rather than checking upfront whether all parts exist, we use
+            # exception flow to account for the possibility of parts being
+            # deleted during concatenation.
+            begin
               IO.copy_stream(file_path(part_uid), file)
+            rescue Errno::ENOENT
+              raise Tus::Error, "some parts for concatenation are missing"
             end
-          rescue Errno::ENOENT
-            raise Tus::Error, "some parts for concatenation are missing"
           end
         end
 
+        # Delete parts after concatenation.
         delete(part_uids)
 
-        # server requires us to return the size of the concatenated file
+        # Tus server requires us to return the size of the concatenated file.
         file_path(uid).size
       end
 
-      def patch_file(uid, io, info = {})
-        raise Tus::NotFound if !file_path(uid).exist?
+      def patch_file(uid, input, info = {})
+        exists!(uid)
 
-        file_path(uid).open("ab") { |file| IO.copy_stream(io, file) }
+        file_path(uid).open("ab") { |file| IO.copy_stream(input, file) }
       end
 
       def read_info(uid)
-        raise Tus::NotFound if !file_path(uid).exist?
+        exists!(uid)
 
-        begin
-          data = info_path(uid).binread
-        rescue Errno::ENOENT
-          data = "{}"
-        end
-
-        JSON.parse(data)
+        JSON.parse(info_path(uid).binread)
       end
 
       def update_info(uid, info)
-        info_path(uid).open("wb") { |file| file.write(info.to_json) }
+        exists!(uid)
+
+        info_path(uid).binwrite(JSON.generate(info))
       end
 
       def get_file(uid, info = {}, range: nil)
-        raise Tus::NotFound if !file_path(uid).exist?
+        exists!(uid)
 
         file = file_path(uid).open("rb")
-        range ||= 0..file.size-1
-        remaining_length = range.end - range.begin + 1
+        range ||= 0..(file.size - 1)
+        length = range.end - range.begin + 1
 
         chunks = Enumerator.new do |yielder|
           file.seek(range.begin)
-          buffer = ""
+          remaining_length = length
 
           while remaining_length > 0
-            chunk = file.read([16*1024, remaining_length].min, buffer)
-            break unless chunk
+            chunk = file.read([16*1024, remaining_length].min, buffer ||= "") or break
             remaining_length -= chunk.bytesize
-
             yielder << chunk
           end
         end
 
         Response.new(
           chunks: chunks,
-          length: remaining_length,
+          length: length,
           close:  ->{file.close},
         )
       end
@@ -90,11 +89,9 @@ module Tus
       end
 
       def expire_files(expiration_date)
-        uids = []
-
-        Pathname.glob(directory.join("*.file")).each do |pathname|
-          uids << pathname.basename(".*") if pathname.mtime <= expiration_date
-        end
+        uids = directory.children
+          .select { |pathname| pathname.mtime <= expiration_date }
+          .map { |pathname| pathname.basename(".*").to_s }
 
         delete(uids)
       end
@@ -103,7 +100,12 @@ module Tus
 
       def delete(uids)
         paths = uids.flat_map { |uid| [file_path(uid), info_path(uid)] }
+
         FileUtils.rm_f paths
+      end
+
+      def exists!(uid)
+        raise Tus::NotFound if !file_path(uid).exist?
       end
 
       def file_path(uid)

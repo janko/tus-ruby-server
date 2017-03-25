@@ -99,6 +99,10 @@ describe Tus::Storage::Filesystem do
       @storage.update_info("foo", {"quux" => "quilt"})
       assert_equal Hash["quux" => "quilt"], @storage.read_info("foo")
     end
+
+    it "raises Tus::NotFound on missing file" do
+      assert_raises(Tus::NotFound) { @storage.update_info("unknown", {}) }
+    end
   end
 
   describe "#get_file" do
