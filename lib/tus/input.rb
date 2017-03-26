@@ -21,7 +21,11 @@ module Tus
     end
 
     def size
-      @input.size
+      if defined?(Rack::Lint) && @input.is_a?(Rack::Lint::InputWrapper)
+        @input.instance_variable_get("@input").size
+      else
+        @input.size
+      end
     end
 
     def close
