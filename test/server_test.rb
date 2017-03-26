@@ -37,15 +37,15 @@ describe Tus::Server do
       assert_equal 204, response.status
       assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
       assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
-      assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
       assert_equal Tus::Server::SUPPORTED_CHECKSUM_ALGORITHMS.join(","), response.headers["Tus-Checksum-Algorithm"]
+      refute response.headers.key?("Tus-Max-Size")
     end
 
-    it "doesn't return Tus-Max-Size if it's not set" do
-      @server.opts[:max_size] = nil
+    it "returns Tus-Max-Size if :max_size is set" do
+      @server.opts[:max_size] = 5 * 1024*1024*1024
       response = @app.options "/files", options
       assert_equal 204, response.status
-      refute response.headers.key?("Tus-Max-Size")
+      assert_equal (5 * 1024*1024*1024).to_s, response.headers["Tus-Max-Size"]
     end
 
     it "doesn't require Tus-Resumable header" do
@@ -245,34 +245,23 @@ describe Tus::Server do
 
   describe "OPTIONS /files/:uid" do
     it "returns 204" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      file_path = URI(response.location).path
-      response = @app.options file_path, options
+      response = @app.options "/files/#{SecureRandom.hex}", options
       assert_equal 204, response.status
       assert_equal Tus::Server::SUPPORTED_VERSIONS.join(","), response.headers["Tus-Version"]
       assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
-      assert_equal @server.opts[:max_size].to_s, response.headers["Tus-Max-Size"]
       assert_equal Tus::Server::SUPPORTED_CHECKSUM_ALGORITHMS.join(","), response.headers["Tus-Checksum-Algorithm"]
-    end
-
-    it "doesn't return Tus-Max-Size if it's not set" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      file_path = URI(response.location).path
-      @server.opts[:max_size] = nil
-      response = @app.options file_path, options
-      assert_equal 204, response.status
       refute response.headers.key?("Tus-Max-Size")
     end
 
-    it "returns 204 even if file is missing" do
-      response = @app.options "/files/unknown", options
+    it "returns Tus-Max-Size if :max_size is set" do
+      @server.opts[:max_size] = 5 * 1024*1024*1024
+      response = @app.options "/files/#{SecureRandom.hex}", options
       assert_equal 204, response.status
+      assert_equal (5 * 1024*1024*1024).to_s, response.headers["Tus-Max-Size"]
     end
 
     it "doesn't require Tus-Resumable header" do
-      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
-      file_path = URI(response.location).path
-      response = @app.options file_path, options(headers: {"Tus-Resumable" => ""})
+      response = @app.options "/files/#{SecureRandom.hex}", options(headers: {"Tus-Resumable" => ""})
       assert_equal 204, response.status
     end
   end
@@ -571,9 +560,7 @@ describe Tus::Server do
       response = @app.get file_path
       assert_equal 403, response.status
 
-      response = @app.post "/files", options(
-        headers: {"Upload-Defer-Length" => "1"}
-      )
+      response = @app.post "/files", options(headers: {"Upload-Defer-Length" => "1"})
       file_path = URI(response.location).path
       response = @app.get file_path
       assert_equal 403, response.status

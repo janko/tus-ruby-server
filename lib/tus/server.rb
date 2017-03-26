@@ -22,7 +22,7 @@ module Tus
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
-    opts[:max_size]        = 1024*1024*1024
+    opts[:max_size]        = nil
     opts[:expiration_time] = 7*24*60*60
     opts[:disposition]     = "inline"
 

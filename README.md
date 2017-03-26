@@ -127,9 +127,9 @@ file to the Rack app is in general *much* longer than the time for the server
 to upload that chunk to S3, because of the differences in the Internet
 connection speed between the user's computer and server.
 
-One thing to note is that S3's multipart API requires each chunk except the last
-one to be 5MB or larger, so that is the minimum chunk size that you can specify
-on your tus client if you want to use the S3 storage.
+One thing to note is that S3's multipart API requires each chunk except the
+last to be **5MB or larger**, so that is the minimum chunk size that you can
+specify on your tus client if you want to use the S3 storage.
 
 If you want to files to be stored in a certain subdirectory, you can specify
 a `:prefix` in the storage configuration.
@@ -170,12 +170,11 @@ def expire_files(expiration_date)          ... end
 
 ## Maximum size
 
-By default the maximum size for an uploaded file is 1GB, but you can change
-that:
+By default the size of files the tus server will accept is unlimited, but you
+can configure the maximum file size:
 
 ```rb
 Tus::Server.opts[:max_size] = 5 * 1024*1024*1024 # 5GB
-Tus::Server.opts[:max_size] = nil                # no limit
 ```
 
 ## Expiration
