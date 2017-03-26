@@ -149,7 +149,7 @@ module Tus
 
           metadata = info.metadata
           response.headers["Content-Disposition"] = opts[:disposition]
-          response.headers["Content-Disposition"] << "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
+          response.headers["Content-Disposition"] += "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
 
           response = storage.get_file(uid, info.to_h, range: range)

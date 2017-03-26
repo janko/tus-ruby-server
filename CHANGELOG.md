@@ -1,5 +1,7 @@
 ## HEAD
 
+* Fix invalid `Content-Disposition` header in GET requests to due mutation of `Tus::Server.opts[:disposition]`
+
 * Make `Response` object from `Tus::Server::S3` also respond to `#close`
 
 * Don't return `Content-Type` header when there is no content returned
