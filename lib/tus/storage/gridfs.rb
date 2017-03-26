@@ -42,6 +42,7 @@ module Tus
           content_type: content_type,
         )
 
+        # Update the chunks belonging to parts so that they point to the new file.
         grid_infos.inject(0) do |offset, grid_info|
           result = chunks_collection
             .find(files_id: grid_info[:_id])
@@ -50,6 +51,7 @@ module Tus
           offset += result.modified_count
         end
 
+        # Delete the parts after concatenation.
         files_collection.delete_many(filename: {"$in" => part_uids})
 
         # Tus server requires us to return the size of the concatenated file.
@@ -65,6 +67,8 @@ module Tus
         chunks_collection.insert_many(grid_chunks)
         grid_chunks.each { |grid_chunk| grid_chunk.data.data.clear } # deallocate strings
 
+        # Update the total length and refresh the upload date on each update,
+        # which are used in #get_file, #concatenate and #expire_files.
         files_collection.find(filename: uid).update_one("$set" => {
           length:     grid_info[:length] + input.size,
           uploadDate: Time.now.utc,
@@ -97,8 +101,14 @@ module Tus
           n: {"$gte" => chunk_start, "$lte" => chunk_stop}
         }
 
+        # Query only the subset of chunks specified by the range query. We
+        # cannot use Mongo::FsBucket#open_download_stream here because it
+        # doesn't support changing the filter.
         chunks_view = chunks_collection.find(filter).sort(n: 1)
 
+        # Create an Enumerator which will yield chunks of the requested file
+        # content, allowing tus server to efficiently stream requested content
+        # to the client.
         chunks = Enumerator.new do |yielder|
           chunks_view.each do |document|
             data = document[:data].data
@@ -114,6 +124,8 @@ module Tus
               byte_stop  = range.end % grid_info[:chunkSize]
             end
 
+            # If we're on the first or last chunk, return a subset of the chunk
+            # specified by the given range, otherwise return the full chunk.
             if byte_start && byte_stop
               yielder << data[byte_start..byte_stop]
             else
@@ -124,6 +136,8 @@ module Tus
           end
         end
 
+        # We return a response object that responds to #each, #length and #close,
+        # which the tus server can return directly as the Rack response.
         Response.new(
           chunks: chunks,
           length: length,

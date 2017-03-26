@@ -66,6 +66,9 @@ module Tus
         range ||= 0..(file.size - 1)
         length = range.end - range.begin + 1
 
+        # Create an Enumerator which will yield chunks of the requested file
+        # content, allowing tus server to efficiently stream requested content
+        # to the client.
         chunks = Enumerator.new do |yielder|
           file.seek(range.begin)
           remaining_length = length
@@ -77,6 +80,8 @@ module Tus
           end
         end
 
+        # We return a response object that responds to #each, #length and #close,
+        # which the tus server can return directly as the Rack response.
         Response.new(
           chunks: chunks,
           length: length,
