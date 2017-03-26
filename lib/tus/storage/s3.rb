@@ -101,13 +101,6 @@ module Tus
       end
 
       def patch_file(uid, io, info = {})
-        tus_info = Tus::Info.new(info)
-        last_chunk = (tus_info.length && io.size == tus_info.remaining_length)
-
-        if io.size < MIN_PART_SIZE && !last_chunk
-          raise Tus::Error, "Chunk size cannot be smaller than 5MB"
-        end
-
         upload_id   = info["multipart_id"]
         part_number = info["multipart_parts"].count + 1
 
