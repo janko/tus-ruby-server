@@ -16,13 +16,14 @@ module Tus
 
       attr_reader :client, :bucket, :prefix, :upload_options
 
-      def initialize(bucket:, prefix: nil, upload_options: {}, **client_options)
+      def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
         resource = Aws::S3::Resource.new(**client_options)
 
-        @client = resource.client
-        @bucket = resource.bucket(bucket)
-        @prefix = prefix
+        @client         = resource.client
+        @bucket         = resource.bucket(bucket)
+        @prefix         = prefix
         @upload_options = upload_options
+        @thread_count   = thread_count
       end
 
       def create_file(uid, info = {})
@@ -40,64 +41,30 @@ module Tus
 
         info["multipart_id"]    = multipart_upload.id
         info["multipart_parts"] = []
+
+        multipart_upload
       end
 
       def concatenate(uid, part_uids, info = {})
-        create_file(uid, info)
+        multipart_upload = create_file(uid, info)
 
-        multipart_upload = object(uid).multipart_upload(info["multipart_id"])
+        objects = part_uids.map { |part_uid| object(part_uid) }
+        parts   = copy_parts(objects, multipart_upload)
 
-        queue = Queue.new
-        part_uids.each_with_index do |part_uid, idx|
-          queue << {
-            copy_source: [bucket.name, object(part_uid).key].join("/"),
-            part_number: idx + 1
-          }
+        parts.each do |part|
+          info["multipart_parts"] << { "part_number" => part[:part_number], "etag" => part[:etag] }
         end
 
-        threads = 10.times.map do
-          Thread.new do
-            Thread.current.abort_on_exception = true
-            completed = []
-
-            begin
-              loop do
-                multipart_copy_task = queue.deq(true) rescue break
-
-                part_number = multipart_copy_task[:part_number]
-                copy_source = multipart_copy_task[:copy_source]
-
-                part = multipart_upload.part(part_number)
-                response = part.copy_from(copy_source: copy_source)
-
-                completed << {
-                  part_number: part_number,
-                  etag: response.copy_part_result.etag,
-                }
-              end
-
-              completed
-            rescue
-              queue.clear
-              raise
-            end
-          end
-        end
-
-        parts = threads.flat_map(&:value).sort_by { |part| part[:part_number] }
-
-        multipart_upload.complete(multipart_upload: {parts: parts})
+        finalize_file(uid, info)
 
         delete(part_uids.flat_map { |part_uid| [object(part_uid), object("#{part_uid}.info")] })
 
-        info.delete("multipart_id")
-        info.delete("multipart_parts")
-
         # Tus server requires us to return the size of the concatenated file.
-        client.head_object(bucket: bucket.name, key: object(uid).key).content_length
-      rescue
+        object = client.head_object(bucket: bucket.name, key: object(uid).key)
+        object.content_length
+      rescue => error
         abort_multipart_upload(multipart_upload) if multipart_upload
-        raise
+        raise error
       end
 
       def patch_file(uid, io, info = {})
@@ -108,22 +75,20 @@ module Tus
         multipart_part   = multipart_upload.part(part_number)
         md5              = Tus::Checksum.new("md5").generate(io)
 
-        begin
-          response = multipart_part.upload(body: io, content_md5: md5)
-        rescue Aws::S3::Errors::NoSuchUpload
-          raise Tus::NotFound
-        end
+        response = multipart_part.upload(body: io, content_md5: md5)
 
         info["multipart_parts"] << {
           "part_number" => part_number,
           "etag"        => response.etag[/"(.+)"/, 1],
         }
+      rescue Aws::S3::Errors::NoSuchUpload
+        raise Tus::NotFound
       end
 
       def finalize_file(uid, info = {})
         upload_id = info["multipart_id"]
         parts = info["multipart_parts"].map do |part|
-          {part_number: part["part_number"], etag: part["etag"]}
+          { part_number: part["part_number"], etag: part["etag"] }
         end
 
         multipart_upload = object(uid).multipart_upload(upload_id)
@@ -145,11 +110,8 @@ module Tus
       end
 
       def get_file(uid, info = {}, range: nil)
-        if range
-          range = "bytes=#{range.begin}-#{range.end}"
-        end
-
         object = object(uid)
+        range  = "bytes=#{range.begin}-#{range.end}" if range
 
         raw_chunks = Enumerator.new do |yielder|
           object.get(range: range) do |chunk|
@@ -158,11 +120,9 @@ module Tus
           end
         end
 
-        begin
-          first_chunk = raw_chunks.next
-        rescue Aws::S3::Errors::NoSuchKey
-          raise Tus::NotFound
-        end
+        # Start the request to be notified if the object doesn't exist, and to
+        # get Aws::S3::Object#content_length.
+        first_chunk = raw_chunks.next
 
         chunks = Enumerator.new do |yielder|
           yielder << first_chunk
@@ -173,6 +133,8 @@ module Tus
           chunks: chunks,
           length: object.content_length,
         )
+      rescue Aws::S3::Errors::NoSuchKey
+        raise Tus::NotFound
       end
 
       def delete_file(uid, info = {})
@@ -222,6 +184,50 @@ module Tus
         end
       rescue Aws::S3::Errors::NoSuchUpload
         # multipart upload was successfully aborted or doesn't exist
+      end
+
+      def copy_parts(objects, multipart_upload)
+        parts = compute_parts(objects, multipart_upload)
+        queue = parts.inject(Queue.new) { |queue, part| queue << part }
+
+        threads = @thread_count.times.map { copy_part_thread(queue) }
+
+        threads.flat_map(&:value).sort_by { |part| part[:part_number] }
+      end
+
+      def compute_parts(objects, multipart_upload)
+        objects.map.with_index do |object, idx|
+          {
+            bucket:      multipart_upload.bucket_name,
+            key:         multipart_upload.object_key,
+            upload_id:   multipart_upload.id,
+            copy_source: [object.bucket_name, object.key].join("/"),
+            part_number: idx + 1,
+          }
+        end
+      end
+
+      def copy_part_thread(queue)
+        Thread.new do
+          Thread.current.abort_on_exception = true
+          begin
+            results = []
+            loop do
+              part = queue.deq(true) rescue break
+              results << copy_part(part)
+            end
+            results
+          rescue => error
+            queue.clear
+            raise error
+          end
+        end
+      end
+
+      def copy_part(part)
+        response = client.upload_part_copy(part)
+
+        { part_number: part[:part_number], etag: response.copy_part_result.etag }
       end
 
       def object(key)
