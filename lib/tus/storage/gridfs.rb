@@ -179,7 +179,7 @@ module Tus
 
       def patch_last_chunk(input, grid_info)
         if grid_info[:length] % grid_info[:chunkSize] != 0
-          last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).first
+          last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).limit(1).first
           data = last_chunk[:data].data
           data << input.read(grid_info[:chunkSize] - data.length)
 
