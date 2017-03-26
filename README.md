@@ -62,8 +62,16 @@ require "tus/storage/filesystem"
 Tus::Server.opts[:storage] = Tus::Storage::Filesystem.new("public/cache")
 ```
 
-One downside of filesystem storage is that by default it doesn't work if you
-want to run tus-ruby-servers on multiple servers, you'd have to set up a shared
+If the configured directory doesn't exist, it will automatically be created.
+By default the UNIX permissions applied will be 0644 for files and 0755 for
+directories, but you can set different permissions:
+
+```rb
+Tus::Storage::Filesystem.new("data", permissions: 0600, directory_permissions: 0777)
+```
+
+One downside of filesystem storage is that it doesn't work by default if you
+want to run tus-ruby-server on multiple servers, you'd have to set up a shared
 filesystem between the servers. Another downside is that you have to make sure
 your servers have enough disk space. Also, if you're using Heroku, you cannot
 store files on the filesystem as they won't persist.

@@ -11,11 +11,25 @@ describe Tus::Storage::Filesystem do
     FileUtils.rm_rf("data")
   end
 
+  def permissions(path)
+    File.lstat(path).mode & 0777
+  end
+
   describe "#initialize" do
     it "creates the directory if it doesn't exist" do
       FileUtils.rm_rf("data")
       Tus::Storage::Filesystem.new("data")
       assert File.directory?("data")
+    end
+
+    it "applies :directory_permissions to the created directory" do
+      FileUtils.rm_rf("data")
+      Tus::Storage::Filesystem.new("data")
+      assert_equal 0755, permissions("data")
+
+      FileUtils.rm_rf("data")
+      Tus::Storage::Filesystem.new("data", directory_permissions: 0777)
+      assert_equal 0777, permissions("data")
     end
   end
 
@@ -23,6 +37,17 @@ describe Tus::Storage::Filesystem do
     it "creates new empty file" do
       @storage.create_file("foo")
       assert_equal "", @storage.get_file("foo").each.map(&:dup).join
+    end
+
+    it "applies :permissions to the created file" do
+      @storage.create_file("foo")
+      assert_equal 0644, permissions("data/foo.file")
+      assert_equal 0644, permissions("data/foo.info")
+
+      @storage = Tus::Storage::Filesystem.new("data", permissions: 0600)
+      @storage.create_file("foo")
+      assert_equal 0600, permissions("data/foo.file")
+      assert_equal 0600, permissions("data/foo.info")
     end
   end
 
@@ -50,6 +75,25 @@ describe Tus::Storage::Filesystem do
       @storage.concatenate("ab", ["a", "b"])
       assert_raises(Tus::NotFound) { @storage.get_file("a") }
       assert_raises(Tus::NotFound) { @storage.get_file("b") }
+    end
+
+    it "applies correct permissions to the concatenated file" do
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      @storage.concatenate("ab", ["a", "b"])
+      assert_equal 0644, permissions("data/ab.file")
+      assert_equal 0644, permissions("data/ab.info")
+
+      @storage = Tus::Storage::Filesystem.new("data", permissions: 0600)
+      @storage.create_file("a")
+      @storage.patch_file("a", StringIO.new("hello"))
+      @storage.create_file("b")
+      @storage.patch_file("b", StringIO.new(" world"))
+      @storage.concatenate("ab", ["a", "b"])
+      assert_equal 0600, permissions("data/ab.file")
+      assert_equal 0600, permissions("data/ab.info")
     end
 
     it "raises an error when parts are missing" do

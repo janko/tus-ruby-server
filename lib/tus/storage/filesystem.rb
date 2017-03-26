@@ -9,15 +9,20 @@ module Tus
     class Filesystem
       attr_reader :directory
 
-      def initialize(directory)
-        @directory = Pathname(directory)
+      def initialize(directory, permissions: 0644, directory_permissions: 0755)
+        @directory             = Pathname(directory)
+        @permissions           = permissions
+        @directory_permissions = directory_permissions
 
         create_directory! unless @directory.exist?
       end
 
       def create_file(uid, info = {})
         file_path(uid).binwrite("")
+        file_path(uid).chmod(@permissions)
+
         info_path(uid).binwrite("{}")
+        info_path(uid).chmod(@permissions)
       end
 
       def concatenate(uid, part_uids, info = {})
@@ -33,6 +38,10 @@ module Tus
             end
           end
         end
+        file_path(uid).chmod(@permissions)
+
+        info_path(uid).binwrite("{}")
+        info_path(uid).chmod(@permissions)
 
         # Delete parts after concatenation.
         delete(part_uids)
@@ -123,7 +132,7 @@ module Tus
 
       def create_directory!
         directory.mkpath
-        directory.chmod(0755)
+        directory.chmod(@directory_permissions)
       end
 
       class Response

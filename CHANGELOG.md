@@ -1,5 +1,9 @@
 ## HEAD
 
+* Make UNIX permissions configurable via `:permissions` and `:directory_permissions` in `Tus::Storage::Filesystem`
+
+* Apply UNIX permissions `0644` for files and `0777` for directories in `Tus::Storage::Filesystem`
+
 * Fix `creation-defer-length` feature not working with unlimited upload size
 
 * Make the filesize of accepted uploads unlimited by default
