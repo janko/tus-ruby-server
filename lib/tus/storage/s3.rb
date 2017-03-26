@@ -247,6 +247,10 @@ module Tus
         def each(&block)
           @chunks.each(&block)
         end
+
+        def close
+          # aws-sdk doesn't provide an API to terminate the HTTP connection
+        end
       end
     end
   end

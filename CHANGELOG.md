@@ -1,5 +1,7 @@
 ## HEAD
 
+* Make `Response` object from `Tus::Server::S3` also respond to `#close`
+
 * Don't return `Content-Type` header when there is no content returned
 
 * Return `Content-Type: text/plain` when returning errors
