@@ -130,6 +130,10 @@ module Tus
           info["Upload-Offset"] = (info.offset + input.size).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
+          if info.offset == info.length # last chunk
+            storage.finalize_file(uid, info.to_h) if storage.respond_to?(:finalize_file)
+          end
+
           storage.update_info(uid, info.to_h)
           response.headers.update(info.headers)
 

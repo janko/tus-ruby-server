@@ -42,10 +42,10 @@ describe Tus::Storage::S3 do
 
   it "can upload a file" do
     info = {
-      "Upload-Metadata" => ["content_type #{Base64.encode64("text/plain")}",
-                            "filename #{Base64.encode64("foo.txt")}"].join(","),
-      "Upload-Length" => "4",
-      "Upload-Offset" => "0",
+      "Upload-Metadata" => [
+        "content_type #{Base64.encode64("text/plain")}",
+        "filename #{Base64.encode64("foo.txt")}"
+      ].join(","),
     }
 
     @storage.create_file("foo", info)
@@ -54,6 +54,7 @@ describe Tus::Storage::S3 do
     assert_equal [], multipart_upload.parts.to_a
 
     @storage.patch_file("foo", Tus::Input.new(StringIO.new("file")), info)
+    @storage.finalize_file("foo", info)
 
     response = @storage.bucket.object("foo").get
     assert_equal "text/plain", response.content_type
@@ -69,19 +70,16 @@ describe Tus::Storage::S3 do
   end
 
   it "can concatenate partial uploads" do
-    part_info = {
-      "Upload-Length" => "11",
-      "Upload-Offset" => "0",
-    }
-    @storage.create_file("part", part_info)
-    @storage.update_info("part", {})
+    @storage.create_file("part", part_info = {})
+    @storage.update_info("part", part_info)
     @storage.patch_file("part", StringIO.new("hello world"), part_info)
+    @storage.finalize_file("part", part_info)
 
     info = {
-      "Upload-Metadata" => ["content_type #{Base64.encode64("text/plain")}",
-                            "filename #{Base64.encode64("foo.txt")}"].join(","),
-      "Upload-Length" => "11",
-      "Upload-Offset" => "0",
+      "Upload-Metadata" => [
+        "content_type #{Base64.encode64("text/plain")}",
+        "filename #{Base64.encode64("foo.txt")}"
+      ].join(","),
     }
 
     result = @storage.concatenate("foo", ["part"], info)
@@ -105,17 +103,16 @@ describe Tus::Storage::S3 do
   end
 
   it "can delete objects and multipart uploads" do
-    info = {"Upload-Length" => "4", "Upload-Offset" => "0"}
-
-    @storage.create_file("foo", info)
-    @storage.update_info("foo", {})
+    @storage.create_file("foo", info = {})
+    @storage.update_info("foo", info)
     @storage.delete_file("foo", info)
     assert_raises(Tus::NotFound) { @storage.patch_file("foo", StringIO.new("file"), info) }
     assert_raises(Tus::NotFound) { @storage.read_info("foo") }
 
-    @storage.create_file("foo", info)
-    @storage.update_info("foo", {})
+    @storage.create_file("foo", info = {})
+    @storage.update_info("foo", info)
     @storage.patch_file("foo", StringIO.new("file"), info)
+    @storage.finalize_file("foo", info)
     @storage.delete_file("foo", info)
     assert_raises(Tus::NotFound) { @storage.get_file("foo") }
     assert_raises(Tus::NotFound) { @storage.read_info("foo") }
@@ -123,11 +120,11 @@ describe Tus::Storage::S3 do
 
   it "can expire objects and multipart uploads" do
     @storage.create_file("foo", foo_info = {})
-    @storage.update_info("foo", {})
+    @storage.update_info("foo", foo_info)
 
-    bar_info = {"Upload-Length" => "4", "Upload-Offset" => "0"}
-    @storage.create_file("bar", bar_info)
+    @storage.create_file("bar", bar_info = {})
     @storage.patch_file("bar", StringIO.new("file"), bar_info)
+    @storage.finalize_file("bar", bar_info)
 
     @storage.expire_files(Time.now.utc)
 

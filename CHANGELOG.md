@@ -1,5 +1,7 @@
 ## HEAD
 
+* Modify tus server to call `Storage#finalize_file` when the last chunk was uploaded
+
 * Don't require length of uploaded chunks to be a multiple of `:chunkSize` in `Tus::Storage::Gridfs`
 
 * Don't infer `:chunkSize` from first uploaded chunk in `Tus::Storage::Gridfs`

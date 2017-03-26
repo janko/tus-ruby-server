@@ -125,20 +125,19 @@ module Tus
           "part_number" => part_number,
           "etag"        => response.etag[/"(.+)"/, 1],
         }
+      end
 
-        # finalize the multipart upload if this chunk was the last part
-        if last_chunk
-          multipart_upload.complete(
-            multipart_upload: {
-              parts: info["multipart_parts"].map do |part|
-                {part_number: part["part_number"], etag: part["etag"]}
-              end
-            }
-          )
-
-          info.delete("multipart_id")
-          info.delete("multipart_parts")
+      def finalize_file(uid, info = {})
+        upload_id = info["multipart_id"]
+        parts = info["multipart_parts"].map do |part|
+          {part_number: part["part_number"], etag: part["etag"]}
         end
+
+        multipart_upload = object(uid).multipart_upload(upload_id)
+        multipart_upload.complete(multipart_upload: {parts: parts})
+
+        info.delete("multipart_id")
+        info.delete("multipart_parts")
       end
 
       def read_info(uid)
