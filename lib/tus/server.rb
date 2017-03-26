@@ -212,7 +212,7 @@ module Tus
       if length
         error!(403, "Cannot modify completed upload") if current_offset == length
         error!(413, "Size of this chunk surpasses Upload-Length") if Integer(request.content_length) + current_offset > length
-      else
+      elsif max_size
         error!(413, "Size of this chunk surpasses Tus-Max-Size") if Integer(request.content_length) + current_offset > max_size
       end
     end

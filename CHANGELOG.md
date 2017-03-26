@@ -1,5 +1,7 @@
 ## HEAD
 
+* Fix `creation-defer-length` feature not working with unlimited upload size
+
 * Make the filesize of accepted uploads unlimited by default
 
 * Modify tus server to call `Storage#finalize_file` when the last chunk was uploaded
