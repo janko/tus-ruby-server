@@ -88,21 +88,17 @@ client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb")
 Tus::Server.opts[:storage] = Tus::Storage::Gridfs.new(client: client)
 ```
 
-The Gridfs specification requires that all chunks are of equal size, except the
-last chunk. `Tus::Storage::Gridfs` will by default automatically make the
-Gridfs chunk size equal to the size of the first uploaded chunk. This means
-that all of the uploaded chunks need to be of equal size (except the last
-chunk).
-
-If you don't want the Gridfs chunk size to be equal to the size of the uploaded
-chunks, you can hardcode the chunk size that will be used for all uploads.
+By default MongoDB Gridfs stores files in chunks of 256KB, but you can change
+that with the `:chunk_size` option:
 
 ```rb
-Tus::Storage::Gridfs.new(client: client, chunk_size: 256*1024) # 256 KB
+Tus::Storage::Gridfs.new(client: client, chunk_size: 1*1024*1024) # 1 MB
 ```
 
-Just note that in this case the size of each uploaded chunk (except the last
-one) needs to be a multiple of the `:chunk_size`.
+Note that if you're using the [concatenation] tus feature with Gridfs, all
+partial uploads except the last one are required to fill in their Gridfs
+chunks, meaning the length of each partial upload needs to be a multiple of the
+`:chunk_size` number.
 
 ### Amazon S3
 
