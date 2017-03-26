@@ -1,5 +1,11 @@
 ## HEAD
 
+* Don't return `Content-Type` header when there is no content returned
+
+* Return `Content-Type: text/plain` when returning errors
+
+* Return `Content-Type: application/octet-stream` by default in the GET endpoint
+
 * Make UNIX permissions configurable via `:permissions` and `:directory_permissions` in `Tus::Storage::Filesystem`
 
 * Apply UNIX permissions `0644` for files and `0777` for directories in `Tus::Storage::Filesystem`

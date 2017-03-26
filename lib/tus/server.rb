@@ -27,6 +27,7 @@ module Tus
     opts[:disposition]     = "inline"
 
     plugin :all_verbs
+    plugin :default_headers, {"Content-Type" => ""}
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :not_allowed
@@ -149,7 +150,7 @@ module Tus
           metadata = info.metadata
           response.headers["Content-Disposition"] = opts[:disposition]
           response.headers["Content-Disposition"] << "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
-          response.headers["Content-Type"] = metadata["content_type"] if metadata["content_type"]
+          response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
 
           response = storage.get_file(uid, info.to_h, range: range)
 
@@ -318,6 +319,7 @@ module Tus
     def error!(status, message)
       response.status = status
       response.write(message) unless request.head?
+      response.headers["Content-Type"] = "text/plain"
       request.halt
     end
 

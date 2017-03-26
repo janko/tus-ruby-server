@@ -59,6 +59,7 @@ describe Tus::Server do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       assert_equal 201, response.status
       assert_match %r{^http://localhost/files/\w+$}, response.location
+      refute response.headers.key?("Content-Type")
     end
 
     it "requires Upload-Length header" do
@@ -251,6 +252,7 @@ describe Tus::Server do
       assert_equal Tus::Server::SUPPORTED_EXTENSIONS.join(","), response.headers["Tus-Extension"]
       assert_equal Tus::Server::SUPPORTED_CHECKSUM_ALGORITHMS.join(","), response.headers["Tus-Checksum-Algorithm"]
       refute response.headers.key?("Tus-Max-Size")
+      refute response.headers.key?("Content-Type")
     end
 
     it "returns Tus-Max-Size if :max_size is set" do
@@ -274,6 +276,7 @@ describe Tus::Server do
       assert_equal 204, response.status
       assert_equal "100", response.headers["Upload-Length"]
       assert_equal "0", response.headers["Upload-Offset"]
+      refute response.headers.key?("Content-Type")
     end
 
     it "prevents caching" do
@@ -312,6 +315,7 @@ describe Tus::Server do
       )
       assert_equal 204, response.status
       assert_equal "5", response.headers["Upload-Offset"]
+      refute response.headers.key?("Content-Type")
     end
 
     it "requires Content-Type to be application/offset+octet-stream" do
@@ -500,6 +504,7 @@ describe Tus::Server do
       response = @app.get file_path
       assert_equal "a" * 100, response.body_binary
       assert_equal "100", response.headers["Content-Length"]
+      assert_equal "application/octet-stream", response.headers["Content-Type"]
     end
 
     it "sets response headers from metadata" do
@@ -578,6 +583,7 @@ describe Tus::Server do
       file_path = URI(response.location).path
       response = @app.delete file_path, options
       assert_equal 204, response.status
+      refute response.headers.key?("Content-Type")
     end
 
     it "deletes the upload" do
