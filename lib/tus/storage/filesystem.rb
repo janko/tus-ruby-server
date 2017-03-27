@@ -26,6 +26,8 @@ module Tus
       end
 
       def concatenate(uid, part_uids, info = {})
+        create_file(uid, info)
+
         file_path(uid).open("wb") do |file|
           part_uids.each do |part_uid|
             # Rather than checking upfront whether all parts exist, we use
@@ -38,10 +40,6 @@ module Tus
             end
           end
         end
-        file_path(uid).chmod(@permissions)
-
-        info_path(uid).binwrite("{}")
-        info_path(uid).chmod(@permissions)
 
         # Delete parts after concatenation.
         delete(part_uids)
