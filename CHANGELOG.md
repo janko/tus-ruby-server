@@ -1,4 +1,4 @@
-## HEAD
+## 0.10.0 (2017-03-27)
 
 * Fix invalid `Content-Disposition` header in GET requests to due mutation of `Tus::Server.opts[:disposition]`
 
