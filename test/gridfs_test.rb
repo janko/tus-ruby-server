@@ -22,6 +22,12 @@ describe Tus::Storage::Gridfs do
     Tus::Storage::Gridfs.new(client: client, **options)
   end
 
+  describe "#initialize" do
+    it "accepts prefix" do
+      assert_equal "fs_temp", gridfs(prefix: "fs_temp").bucket.prefix
+    end
+  end
+
   describe "#create_file" do
     it "creates a new empty file" do
       @storage.create_file("foo")

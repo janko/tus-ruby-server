@@ -11,11 +11,12 @@ module Tus
       attr_reader :client, :prefix, :bucket, :chunk_size
 
       def initialize(client:, prefix: "fs", chunk_size: 256*1024)
-        @client = client
-        @prefix = prefix
-        @bucket = @client.database.fs(bucket_name: @prefix)
-        @bucket.send(:ensure_indexes!)
+        @client     = client
+        @prefix     = prefix
         @chunk_size = chunk_size
+        @bucket     = client.database.fs(bucket_name: prefix)
+
+        @bucket.send(:ensure_indexes!)
       end
 
       def create_file(uid, info = {})

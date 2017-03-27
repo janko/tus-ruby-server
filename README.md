@@ -96,6 +96,12 @@ client = Mongo::Client.new("mongodb://127.0.0.1:27017/mydb")
 Tus::Server.opts[:storage] = Tus::Storage::Gridfs.new(client: client)
 ```
 
+You can change the database prefix (defaults to `fs`):
+
+```rb
+Tus::Storage::Gridfs.new(client: client, prefix: "fs_temp")
+```
+
 By default MongoDB Gridfs stores files in chunks of 256KB, but you can change
 that with the `:chunk_size` option:
 
