@@ -129,12 +129,6 @@ Tus::Server.opts[:storage] = Tus::Storage::S3.new(
 )
 ```
 
-It might seem at first that using a remote storage like Amazon S3 will slow
-down the overall upload, but the time it takes for the client to upload the
-file to the Rack app is in general *much* longer than the time for the server
-to upload that chunk to S3, because of the differences in the Internet
-connection speed between the user's computer and server.
-
 One thing to note is that S3's multipart API requires each chunk except the
 last to be **5MB or larger**, so that is the minimum chunk size that you can
 specify on your tus client if you want to use the S3 storage.
