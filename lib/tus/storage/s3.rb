@@ -67,15 +67,15 @@ module Tus
         raise error
       end
 
-      def patch_file(uid, io, info = {})
+      def patch_file(uid, input, info = {})
         upload_id   = info["multipart_id"]
         part_number = info["multipart_parts"].count + 1
 
         multipart_upload = object(uid).multipart_upload(upload_id)
         multipart_part   = multipart_upload.part(part_number)
-        md5              = Tus::Checksum.new("md5").generate(io)
+        md5              = Tus::Checksum.new("md5").generate(input)
 
-        response = multipart_part.upload(body: io, content_md5: md5)
+        response = multipart_part.upload(body: input, content_md5: md5)
 
         info["multipart_parts"] << {
           "part_number" => part_number,
