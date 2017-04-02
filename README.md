@@ -4,7 +4,7 @@ A Ruby server for the [tus resumable upload protocol]. It implements the core
 1.0 protocol, along with the following extensions:
 
 * [`creation`][creation] (and `creation-defer-length`)
-* [`concatenation`][concatenation] (and `concatenation-unfinished`)
+* [`concatenation`][concatenation]
 * [`checksum`][checksum]
 * [`expiration`][expiration]
 * [`termination`][termination]

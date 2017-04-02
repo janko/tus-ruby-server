@@ -16,7 +16,7 @@ module Tus
       "creation", "creation-defer-length",
       "termination",
       "expiration",
-      "concatenation", "concatenation-unfinished",
+      "concatenation",
       "checksum",
     ]
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]

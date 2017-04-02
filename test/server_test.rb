@@ -150,28 +150,6 @@ describe Tus::Server do
       assert_equal 404, response.status
     end
 
-    it "can concat unfinished uploads" do
-      response = @app.post "/files", options(
-        headers: {"Upload-Length" => "1",
-                  "Upload-Concat" => "partial"}
-      )
-      file_path1 = URI(response.location).path
-
-      response = @app.post "/files", options(
-        headers: {"Upload-Length" => "1",
-                  "Upload-Concat" => "partial"}
-      )
-      file_path2 = URI(response.location).path
-
-      response = @app.post "/files", options(
-        headers: {"Upload-Concat" => "final;#{file_path1} #{file_path2}"}
-      )
-      assert_equal 201, response.status
-      assert_equal "final;#{file_path1} #{file_path2}", response.headers["Upload-Concat"]
-      assert_equal "0", response.headers["Upload-Length"]
-      assert_equal "0", response.headers["Upload-Offset"]
-    end
-
     it "doesn't allow invalid Upload-Concat header" do
       response = @app.post "/files", options(
         headers: {"Upload-Length" => "0",
