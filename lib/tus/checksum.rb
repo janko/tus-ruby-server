@@ -47,14 +47,14 @@ module Tus
     end
 
     def generate_crc32(io)
-      crc = nil
-      crc = Zlib.crc32(io.read(16*1024, buffer ||= "").to_s, crc) until io.eof?
+      crc = 0
+      crc = Zlib.crc32(io.read(16*1024, buffer ||= ""), crc) until io.eof?
       Base64.encode64(crc.to_s)
     end
 
     def digest(name, io)
       digest = Digest.const_get(name).new
-      digest.update(io.read(16*1024, buffer ||= "").to_s) until io.eof?
+      digest.update(io.read(16*1024, buffer ||= "")) until io.eof?
       digest.base64digest
     end
   end

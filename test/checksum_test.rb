@@ -11,5 +11,14 @@ describe Tus::Checksum do
 
       assert 0, io.pos
     end
+
+    it "calculates #{algorithm} of empty files" do
+      checksum = Tus::Checksum.new(algorithm)
+      io       = StringIO.new("")
+
+      refute_empty checksum.generate(io)
+
+      assert 0, io.pos
+    end
   end
 end
