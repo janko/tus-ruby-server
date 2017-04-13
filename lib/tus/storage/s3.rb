@@ -113,12 +113,7 @@ module Tus
         object = object(uid)
         range  = "bytes=#{range.begin}-#{range.end}" if range
 
-        raw_chunks = Enumerator.new do |yielder|
-          object.get(range: range) do |chunk|
-            yielder << chunk
-            chunk.clear # deallocate string
-          end
-        end
+        raw_chunks = object.enum_for(:get, range: range)
 
         # Start the request to be notified if the object doesn't exist, and to
         # get Aws::S3::Object#content_length.

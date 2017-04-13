@@ -132,8 +132,6 @@ module Tus
             else
               yielder << data
             end
-
-            data.clear # deallocate chunk string
           end
         end
 

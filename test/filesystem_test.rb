@@ -36,7 +36,7 @@ describe Tus::Storage::Filesystem do
   describe "#create_file" do
     it "creates new empty file" do
       @storage.create_file("foo")
-      assert_equal "", @storage.get_file("foo").each.map(&:dup).join
+      assert_equal "", @storage.get_file("foo").each.to_a.join
     end
 
     it "applies :permissions to the created file" do
@@ -58,7 +58,7 @@ describe Tus::Storage::Filesystem do
       @storage.create_file("b")
       @storage.patch_file("b", StringIO.new(" world"))
       @storage.concatenate("ab", ["a", "b"])
-      assert_equal "hello world", @storage.get_file("ab").each.map(&:dup).join
+      assert_equal "hello world", @storage.get_file("ab").each.to_a.join
     end
 
     it "returns size of the concatenated file" do
@@ -107,7 +107,7 @@ describe Tus::Storage::Filesystem do
       @storage.patch_file("foo", StringIO.new("hello"))
       @storage.patch_file("foo", StringIO.new(" world"))
       response = @storage.get_file("foo")
-      assert_equal "hello world", response.each.map(&:dup).join
+      assert_equal "hello world", response.each.to_a.join
     end
 
     it "works with Tus::Input" do
@@ -115,7 +115,7 @@ describe Tus::Storage::Filesystem do
       @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
       @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
       response = @storage.get_file("foo")
-      assert_equal "hello world", response.each.map(&:dup).join
+      assert_equal "hello world", response.each.to_a.join
     end
 
     it "raises Tus::NotFound on missing file" do
@@ -154,7 +154,7 @@ describe Tus::Storage::Filesystem do
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("a" * 16*1024 + "b" * 16*1024))
       response = @storage.get_file("foo")
-      assert_equal "a" * 16*1024 + "b" * 16*1024, response.each.map(&:dup).join
+      assert_equal "a" * 16*1024 + "b" * 16*1024, response.each.to_a.join
       assert_equal 32*1024, response.length
       response.close
     end
@@ -164,13 +164,13 @@ describe Tus::Storage::Filesystem do
       @storage.patch_file("foo", StringIO.new("a" * 16*1024 + "b" * 16*1024))
 
       response = @storage.get_file("foo", range: (16*1024 - 3)..(16*1024 + 2))
-      assert_equal "a" * 3 + "b" * 3, response.each.map(&:dup).join
+      assert_equal "a" * 3 + "b" * 3, response.each.to_a.join
 
       response = @storage.get_file("foo", range: (16*1024 - 3)..(32*1024 - 1))
-      assert_equal "a" * 3 + "b" * 16*1024, response.each.map(&:dup).join
+      assert_equal "a" * 3 + "b" * 16*1024, response.each.to_a.join
 
       response = @storage.get_file("foo", range: (0)..(16*1024 + 2))
-      assert_equal "a" * 16*1024 + "b" * 3, response.each.map(&:dup).join
+      assert_equal "a" * 16*1024 + "b" * 3, response.each.to_a.join
     end
 
     it "handles multibyte characters" do

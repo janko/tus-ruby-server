@@ -81,7 +81,7 @@ module Tus
           remaining_length = length
 
           while remaining_length > 0
-            chunk = file.read([16*1024, remaining_length].min, buffer ||= "") or break
+            chunk = file.read([16*1024, remaining_length].min) or break
             remaining_length -= chunk.bytesize
             yielder << chunk
           end

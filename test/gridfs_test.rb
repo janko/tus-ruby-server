@@ -31,7 +31,7 @@ describe Tus::Storage::Gridfs do
   describe "#create_file" do
     it "creates a new empty file" do
       @storage.create_file("foo")
-      assert_equal "", @storage.get_file("foo").each.map(&:dup).join
+      assert_equal "", @storage.get_file("foo").each.to_a.join
     end
 
     it "stores content type" do
@@ -60,7 +60,7 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("d")
       @storage.patch_file("d", StringIO.new("ld"))
       @storage.concatenate("abcd", ["a", "b", "c", "d"])
-      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("abcd").each.map(&:dup)
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("abcd").each.to_a
     end
 
     it "returns size of the concatenated file" do
@@ -110,7 +110,7 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("hello"))
       @storage.patch_file("foo", StringIO.new(" world"))
-      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.map(&:dup)
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.to_a
     end
 
     it "accepts Tus::Input" do
@@ -118,7 +118,7 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("foo")
       @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))
       @storage.patch_file("foo", Tus::Input.new(StringIO.new(" world")).tap(&:read).tap(&:rewind))
-      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.map(&:dup)
+      assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.to_a
     end
 
     it "updates :length and :uploadDate" do
@@ -141,7 +141,7 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("hello world"))
       response = @storage.get_file("foo")
-      assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.map(&:dup)
+      assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.to_a
       assert_equal 11, response.length
       response.close
     end
@@ -152,13 +152,13 @@ describe Tus::Storage::Gridfs do
       @storage.patch_file("foo", StringIO.new("hello world"))
 
       response = @storage.get_file("foo", range: 0..11)
-      assert_equal ["hel", "lo ", "wor", "ld"], response.each.map(&:dup)
+      assert_equal ["hel", "lo ", "wor", "ld"], response.each.to_a
 
       response = @storage.get_file("foo", range: 6..11)
-      assert_equal ["wor", "ld"], response.each.map(&:dup)
+      assert_equal ["wor", "ld"], response.each.to_a
 
       response = @storage.get_file("foo", range: 4..6)
-      assert_equal ["o ", "w"], response.each.map(&:dup)
+      assert_equal ["o ", "w"], response.each.to_a
     end
 
     it "raises Tus::NotFound on missing file" do

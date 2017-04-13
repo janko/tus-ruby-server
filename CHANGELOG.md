@@ -1,5 +1,7 @@
 ## HEAD
 
+* Fix download endpoint returning incorrect response body in some cases in development
+
 * Remove `concatenation-unfinished` from list of supported extensions
 
 ## 0.10.0 (2017-03-27)
