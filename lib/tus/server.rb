@@ -228,7 +228,7 @@ module Tus
       upload_metadata.split(",").each do |string|
         key, value = string.split(" ")
 
-        error!(400, "Invalid Upload-Metadata header") if key.nil? || value.nil?
+        error!(400, "Invalid Upload-Metadata header") if key.nil?
         error!(400, "Invalid Upload-Metadata header") if key.ord > 127
         error!(400, "Invalid Upload-Metadata header") if key =~ /,| /
 
