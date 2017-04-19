@@ -1,4 +1,4 @@
-## HEAD
+## 0.10.2 (2017-04-19)
 
 * Allow empty metadata values in `Upload-Metadata` header (@lysenkooo)
 
