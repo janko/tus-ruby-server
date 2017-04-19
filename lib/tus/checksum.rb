@@ -1,7 +1,3 @@
-require "base64"
-require "digest"
-require "zlib"
-
 module Tus
   class Checksum
     attr_reader :algorithm
@@ -47,12 +43,15 @@ module Tus
     end
 
     def generate_crc32(io)
+      require "zlib"
+      require "base64"
       crc = 0
       crc = Zlib.crc32(io.read(16*1024, buffer ||= ""), crc) until io.eof?
       Base64.encode64(crc.to_s)
     end
 
     def digest(name, io)
+      require "digest"
       digest = Digest.const_get(name).new
       digest.update(io.read(16*1024, buffer ||= "")) until io.eof?
       digest.base64digest
