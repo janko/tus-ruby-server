@@ -79,14 +79,18 @@ describe Tus::Server do
 
     it "accepts Upload-Metadata header" do
       response = @app.post "/files", options(
-        headers: {"Upload-Length"   => "100",
-                  "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")}"}
+        headers: {"Upload-Length"   => "0",
+                  "Upload-Metadata" => "filename #{Base64.encode64("nature.jpg")},content_type "}
       )
       assert_equal 201, response.status
       file_path = URI(response.location).path
 
       response = @app.head file_path, options
-      assert_equal "filename #{Base64.encode64("nature.jpg")}", response.headers["Upload-Metadata"]
+      assert_equal "filename #{Base64.encode64("nature.jpg")},content_type ", response.headers["Upload-Metadata"]
+
+      response = @app.get file_path, options
+      assert_equal "inline; filename=\"nature.jpg\"", response.headers["Content-Disposition"]
+      assert_equal "application/octet-stream", response.headers["Content-Type"]
     end
 
     it "doesn't accept invalid Upload-Metadata header" do

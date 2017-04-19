@@ -74,7 +74,7 @@ module Tus
 
       hash = Hash[pairs]
       hash.each do |key, value|
-        hash[key] = value && Base64.decode64(value) || ''
+        hash[key] = value && Base64.decode64(value)
       end
 
       hash
