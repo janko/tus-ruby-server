@@ -47,7 +47,7 @@ module Tus
       require "base64"
       crc = 0
       crc = Zlib.crc32(io.read(16*1024, buffer ||= ""), crc) until io.eof?
-      Base64.encode64(crc.to_s)
+      Base64.encode64(crc.to_s).delete("\n")
     end
 
     def digest(name, io)

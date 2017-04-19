@@ -1,5 +1,7 @@
 ## HEAD
 
+* Remove newlines from the base64-encoded CRC32 signature (@janko-m)
+
 * Lazily require `digest`, `zlib`, and `base64` standard libraries (@janko-m)
 
 ## 0.10.2 (2017-04-19)
