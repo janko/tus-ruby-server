@@ -300,6 +300,21 @@ describe Tus::Server do
       refute response.headers.key?("Content-Type")
     end
 
+    it "doesn't require 'Content-Length' header" do
+      response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
+      file_path = URI(response.location).path
+      env = Rack::TestApp.new_env(:PATCH, file_path, options(
+        input: "a" * 50,
+        headers: {"Upload-Offset"  => "0",
+                  "Content-Type"   => "application/offset+octet-stream"},
+      ))
+      env.delete("CONTENT_LENGTH")
+      response = Rack::TestApp::Result.new(*@app.instance_variable_get("@app").call(env))
+      assert_equal 204, response.status
+      assert_equal "50", response.headers["Upload-Offset"]
+      refute response.headers.key?("Content-Type")
+    end
+
     it "requires Content-Type to be application/offset+octet-stream" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path

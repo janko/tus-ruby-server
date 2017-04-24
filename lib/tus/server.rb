@@ -112,8 +112,6 @@ module Tus
         end
 
         r.patch do
-          input = Tus::Input.new(request.body)
-
           if info.defer_length? && request.headers["Upload-Length"]
             validate_upload_length!
 
@@ -124,7 +122,7 @@ module Tus
           validate_content_type!
           validate_content_length!(info.offset, info.length)
           validate_upload_offset!(info.offset)
-          validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
+          validate_upload_checksum! if request.headers["Upload-Checksum"]
 
           storage.patch_file(uid, input, info.to_h)
 
@@ -172,6 +170,10 @@ module Tus
       raise
     end
 
+    def input
+      @input ||= Tus::Input.new(request.body)
+    end
+
     def validate_content_type!
       error!(415, "Invalid Content-Type header") if request.content_type != RESUMABLE_CONTENT_TYPE
     end
@@ -212,9 +214,9 @@ module Tus
     def validate_content_length!(current_offset, length)
       if length
         error!(403, "Cannot modify completed upload") if current_offset == length
-        error!(413, "Size of this chunk surpasses Upload-Length") if Integer(request.content_length) + current_offset > length
+        error!(413, "Size of this chunk surpasses Upload-Length") if input.size + current_offset > length
       elsif max_size
-        error!(413, "Size of this chunk surpasses Tus-Max-Size") if Integer(request.content_length) + current_offset > max_size
+        error!(413, "Size of this chunk surpasses Tus-Max-Size") if input.size + current_offset > max_size
       end
     end
 
@@ -249,7 +251,7 @@ module Tus
       end
     end
 
-    def validate_upload_checksum!(input)
+    def validate_upload_checksum!
       algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
 
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?

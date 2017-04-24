@@ -1,5 +1,7 @@
 ## HEAD
 
+* Allow `Transfer-Encoding: chunked` to be used, meaning `Content-Length` can be blank (@janko-m)
+
 * Remove newlines from the base64-encoded CRC32 signature (@janko-m)
 
 * Lazily require `digest`, `zlib`, and `base64` standard libraries (@janko-m)
