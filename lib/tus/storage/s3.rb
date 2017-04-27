@@ -79,7 +79,7 @@ module Tus
 
         info["multipart_parts"] << {
           "part_number" => part_number,
-          "etag"        => response.etag[/"(.+)"/, 1],
+          "etag"        => response.etag,
         }
       rescue Aws::S3::Errors::NoSuchUpload
         raise Tus::NotFound
