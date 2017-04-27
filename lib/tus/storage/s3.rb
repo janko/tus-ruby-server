@@ -33,8 +33,12 @@ module Tus
         options[:content_type] = tus_info.metadata["content_type"]
 
         if filename = tus_info.metadata["filename"]
+          # Aws-sdk doesn't sign non-ASCII characters correctly, and browsers
+          # will automatically URI-decode filenames.
+          filename = CGI.escape(filename).gsub("+", " ")
+
           options[:content_disposition] ||= "inline"
-          options[:content_disposition]  += "; filename=\"#{CGI.escape(filename).gsub("+", " ")}\""
+          options[:content_disposition]  += "; filename=\"#{filename}\""
         end
 
         multipart_upload = object(uid).initiate_multipart_upload(options)
