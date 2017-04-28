@@ -304,23 +304,6 @@ Run tests with
 $ rake test
 ```
 
-The S3 tests are excluded by default, but you can include them by setting the
-`$S3` environment variable.
-
-```
-$ S3=1 rake test
-```
-
-For running S3 tests you need to create an `.env` with the S3 credentials:
-
-```sh
-# .env
-S3_BUCKET="..."
-S3_REGION="..."
-S3_ACCESS_KEY_ID="..."
-S3_SECRET_ACCESS_KEY="..."
-```
-
 ## Inspiration
 
 The tus-ruby-server was inspired by [rubytus].

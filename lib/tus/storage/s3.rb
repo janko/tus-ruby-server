@@ -124,8 +124,8 @@ module Tus
         first_chunk = raw_chunks.next
 
         chunks = Enumerator.new do |yielder|
-          yielder << first_chunk
-          loop { yielder << raw_chunks.next }
+          yielder << first_chunk              # first chunk
+          loop { yielder << raw_chunks.next } # rest of the chunks
         end
 
         Response.new(
@@ -155,7 +155,9 @@ module Tus
         delete(old_objects)
 
         bucket.multipart_uploads.each do |multipart_upload|
+          # no need to check multipart uploads initiated before expiration date
           next if multipart_upload.initiated > expiration_date
+
           most_recent_part = multipart_upload.parts.sort_by(&:last_modified).last
           if most_recent_part.nil? || most_recent_part.last_modified <= expiration_date
             abort_multipart_upload(multipart_upload)

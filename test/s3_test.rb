@@ -2,12 +2,9 @@ require "test_helper"
 require "tus/storage/s3"
 
 require "aws-sdk"
-require "dotenv"
 
 require "base64"
 require "stringio"
-
-Dotenv.load!
 
 describe Tus::Storage::S3 do
   before do
@@ -16,12 +13,11 @@ describe Tus::Storage::S3 do
   end
 
   def s3(**options)
-    options[:access_key_id]     ||= ENV.fetch("S3_ACCESS_KEY_ID")
-    options[:secret_access_key] ||= ENV.fetch("S3_SECRET_ACCESS_KEY")
-    options[:region]            ||= ENV.fetch("S3_REGION")
-    options[:bucket]            ||= ENV.fetch("S3_BUCKET")
-
-    Tus::Storage::S3.new(options)
+    Tus::Storage::S3.new(
+      stub_responses: true,
+      bucket: "my-bucket",
+      **options
+    )
   end
 
   describe "#initialize" do
@@ -40,102 +36,393 @@ describe Tus::Storage::S3 do
     end
   end
 
-  it "can upload a file" do
-    info = {
-      "Upload-Metadata" => [
-        "content_type #{Base64.encode64("text/plain")}",
-        "filename #{Base64.encode64("foo.txt")}"
-      ].join(","),
-    }
+  describe "#create_file" do
+    it "creates a multipart upload with uid as the key" do
+      @storage.client.stub_responses(:get_object, "NoSuchKey")
+      @storage.client.stub_responses(:create_multipart_upload, -> (multipart_context) {
+        @storage.client.stub_responses(:get_object, {})
+        { upload_id: "upload_id" }
+      })
 
-    @storage.create_file("foo", info)
+      @storage.create_file("uid", info = {})
 
-    multipart_upload = @storage.bucket.object("foo").multipart_upload(info["multipart_id"])
-    assert_equal [], multipart_upload.parts.to_a
+      @storage.bucket.object("uid").get
+      assert_equal "upload_id", info["multipart_id"]
+      assert_equal [],          info["multipart_parts"]
+    end
 
-    @storage.patch_file("foo", Tus::Input.new(StringIO.new("file")), info)
-    @storage.finalize_file("foo", info)
+    it "assigns content type from metadata" do
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        @storage.client.stub_responses(:get_object, content_type: context.params[:content_type])
+        { upload_id: "upload_id" }
+      })
 
-    response = @storage.bucket.object("foo").get
-    assert_equal "text/plain", response.content_type
-    assert_equal "inline; filename=\"foo.txt\"", response.content_disposition
+      @storage.create_file("uid", {"Upload-Metadata" => "content_type #{Base64.encode64("text/plain")}"})
 
-    response = @storage.get_file("foo", info)
-    assert_equal "file", response.each.to_a.join
-    assert_equal 4,      response.length
+      assert_equal "text/plain", @storage.bucket.object("uid").get.content_type
+    end
 
-    assert_equal "fi", @storage.get_file("foo", info, range: 0..1).each.to_a.join
+    it "assigns content disposition from filename metadata" do
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
+        { upload_id: "upload_id" }
+      })
 
-    @storage.delete_file("foo", info)
+      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
+
+      assert_equal "inline; filename=\"file.txt\"", @storage.bucket.object("uid").get.content_disposition
+    end
+
+    it "escapes non-ASCII characters which aws-sdk cannot sign well" do
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
+        { upload_id: "upload_id" }
+      })
+
+      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("ē .txt")}"})
+
+      assert_equal "inline; filename=\"%C4%93 .txt\"", @storage.bucket.object("uid").get.content_disposition
+    end
+
+    it "works with content disposition in default upload options" do
+      @storage = s3(upload_options: {content_disposition: "attachment"})
+
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
+        { upload_id: "upload_id" }
+      })
+      @storage.create_file("uid")
+      assert_equal "attachment", @storage.bucket.object("uid").get.content_disposition
+
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
+        { upload_id: "upload_id" }
+      })
+      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
+      assert_equal "attachment; filename=\"file.txt\"", @storage.bucket.object("uid").get.content_disposition
+    end
   end
 
-  it "can concatenate partial uploads" do
-    @storage.create_file("part", part_info = {})
-    @storage.update_info("part", part_info)
-    @storage.patch_file("part", StringIO.new("hello world"), part_info)
-    @storage.finalize_file("part", part_info)
+  describe "#patch_file" do
+    before do
+      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
+      @storage.create_file("uid", @info = {})
+    end
 
-    info = {
-      "Upload-Metadata" => [
-        "content_type #{Base64.encode64("text/plain")}",
-        "filename #{Base64.encode64("foo.txt")}"
-      ].join(","),
-    }
+    it "uploads the input as a multipart part" do
+      @storage.client.stub_responses(:upload_part, -> (context) {
+        assert_equal "upload_id",                context.params[:upload_id]
+        assert_equal "uid",                      context.params[:key]
+        assert_equal 1,                          context.params[:part_number]
+        assert_equal "mgNkuembtIDdJeHwKEyFVQ==", context.params[:content_md5]
+        assert_equal "content",                  context.params[:body].read
 
-    result = @storage.concatenate("foo", ["part"], info)
+        { etag: "etag" }
+      })
 
-    assert_equal 11, result
+      @storage.patch_file("uid", StringIO.new("content"), @info)
 
-    assert_equal "hello world", @storage.get_file("foo").each.to_a.join
-    response = @storage.bucket.object("foo").get
-    assert_equal "text/plain", response.content_type
-    assert_equal "inline; filename=\"foo.txt\"", response.content_disposition
+      assert_equal [{"part_number" => 1, "etag" => "etag"}], @info["multipart_parts"]
+    end
 
-    assert_raises(Tus::NotFound) { @storage.get_file("part") }
-    assert_raises(Tus::NotFound) { @storage.read_info("part") }
+    it "uses the correct part number" do
+      @storage.client.stub_responses(:upload_part, -> (context) {
+        { etag: "etag#{context.params[:part_number]}" }
+      })
+
+      @storage.patch_file("uid", StringIO.new("content"), @info)
+      @storage.patch_file("uid", StringIO.new("content"), @info)
+      @storage.patch_file("uid", StringIO.new("content"), @info)
+
+      parts = [{ "part_number" => 1, "etag" => "etag1" },
+               { "part_number" => 2, "etag" => "etag2" },
+               { "part_number" => 3, "etag" => "etag3" }]
+
+      assert_equal parts, @info["multipart_parts"]
+    end
+
+    it "raises Tus::NotFound when multipart upload is missing" do
+      @storage.client.stub_responses(:upload_part, "NoSuchUpload")
+
+      assert_raises(Tus::NotFound) do
+        @storage.patch_file("uid", StringIO.new("content"), @info)
+      end
+    end
   end
 
-  it "can manage info" do
-    @storage.update_info("foo", {"Foo" => "Bar"})
-    assert_equal Hash["Foo" => "Bar"], @storage.read_info("foo")
+  describe "#finalize_file" do
+    before do
+      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
+      @storage.create_file("uid", @info = {})
+    end
 
-    @storage.delete_file("foo")
+    it "completes the multipart upload" do
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+        { etag: "etag2" },
+      ])
+      @storage.client.stub_responses(:complete_multipart_upload, -> (context) {
+        assert_equal "uid",       context.params[:key]
+        assert_equal "upload_id", context.params[:upload_id]
+
+        payload = { parts: [{ part_number: 1, etag: "etag1" },
+                            { part_number: 2, etag: "etag2" }] }
+        assert_equal payload, context.params[:multipart_upload]
+
+        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
+
+        {}
+      })
+
+      @storage.patch_file("uid", StringIO.new("content"), @info)
+      @storage.patch_file("uid", StringIO.new("content"), @info)
+      @storage.finalize_file("uid", @info)
+
+      assert_equal [], @storage.bucket.multipart_uploads.to_a
+      refute @info.key?("multipart_id")
+      refute @info.key?("multipart_parts")
+    end
   end
 
-  it "can delete objects and multipart uploads" do
-    @storage.create_file("foo", info = {})
-    @storage.update_info("foo", info)
-    @storage.delete_file("foo", info)
-    assert_raises(Tus::NotFound) { @storage.patch_file("foo", StringIO.new("file"), info) }
-    assert_raises(Tus::NotFound) { @storage.read_info("foo") }
+  describe "#concatenate" do
+    it "copies parts into a new multipart upload" do
+      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
+        assert_equal "uid", context.params[:key]
+        { upload_id: "upload_id" }
+      })
+      @storage.client.stub_responses(:upload_part_copy, [
+        -> (context) {
+          assert_equal "uid",                 context.params[:key]
+          assert_equal "upload_id",           context.params[:upload_id]
+          assert_equal 1,                     context.params[:part_number]
+          assert_equal "my-bucket/part_uid1", context.params[:copy_source]
 
-    @storage.create_file("foo", info = {})
-    @storage.update_info("foo", info)
-    @storage.patch_file("foo", StringIO.new("file"), info)
-    @storage.finalize_file("foo", info)
-    @storage.delete_file("foo", info)
-    assert_raises(Tus::NotFound) { @storage.get_file("foo") }
-    assert_raises(Tus::NotFound) { @storage.read_info("foo") }
+          { copy_part_result: { etag: "etag1" } }
+        },
+        -> (context) {
+          assert_equal "uid",                 context.params[:key]
+          assert_equal "upload_id",           context.params[:upload_id]
+          assert_equal 2,                     context.params[:part_number]
+          assert_equal "my-bucket/part_uid2", context.params[:copy_source]
+
+          { copy_part_result: { etag: "etag2" } }
+        },
+      ])
+      @storage.client.stub_responses(:complete_multipart_upload, -> (context) {
+        assert_equal "uid",       context.params[:key]
+        assert_equal "upload_id", context.params[:upload_id]
+
+        payload = { parts: [{ part_number: 1, etag: "etag1" },
+                            { part_number: 2, etag: "etag2" }] }
+
+        assert_equal payload, context.params[:multipart_upload]
+      })
+      @storage.client.stub_responses(:head_object, -> (context) {
+        assert_equal "uid", context.params[:key]
+        { content_length: 10 }
+      })
+
+      content_length = @storage.concatenate("uid", ["part_uid1", "part_uid2"], {})
+
+      assert_equal 10, content_length
+    end
+
+    it "propagates errors and aborts multipart upload" do
+      @storage.client.stub_responses(:create_multipart_upload, "TimeoutError")
+      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
+
+      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id", key: "uid")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
+      @storage.client.stub_responses(:upload_part_copy, "TimeoutError")
+      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
+        assert_equal "upload_id", context.params[:upload_id]
+        assert_equal "uid",       context.params[:key]
+        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
+      })
+      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
+      assert_equal [], @storage.bucket.multipart_uploads.to_a
+
+      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id", key: "uid")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
+      @storage.client.stub_responses(:upload_part_copy, copy_part_result: { etag: "etag" })
+      @storage.client.stub_responses(:complete_multipart_upload, "TimeoutError")
+      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
+        assert_equal "upload_id", context.params[:upload_id]
+        assert_equal "uid",       context.params[:key]
+        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
+      })
+      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
+      assert_equal [], @storage.bucket.multipart_uploads.to_a
+    end
   end
 
-  it "can expire objects and multipart uploads" do
-    @storage.create_file("foo", foo_info = {})
-    @storage.update_info("foo", foo_info)
+  describe "#read_info" do
+    it "retrieves the info object content" do
+      @storage.client.stub_responses(:get_object, -> (context) {
+        assert_equal "uid.info", context.params[:key]
+        { body: StringIO.new('{"Key":"Value"}') }
+      })
 
-    @storage.create_file("bar", bar_info = {})
-    @storage.patch_file("bar", StringIO.new("file"), bar_info)
-    @storage.finalize_file("bar", bar_info)
+      assert_equal Hash["Key" => "Value"], @storage.read_info("uid")
+    end
 
-    @storage.expire_files(Time.now.utc)
+    it "raises Tus::NotFound when object is missing" do
+      @storage.client.stub_responses(:get_object, "NoSuchKey")
 
-    assert_raises(Tus::NotFound) { @storage.get_file("foo") }
-    assert_raises(Tus::NotFound) { @storage.read_info("foo") }
-    assert_raises(Tus::NotFound) { @storage.get_file("bar") }
+      assert_raises(Tus::NotFound) { @storage.read_info("uid") }
+    end
   end
 
-  it "returns Tus::NotFound when appropriate" do
-    assert_raises(Tus::NotFound) { @storage.patch_file("foo", StringIO.new("file"), {"multipart_id" => "abc", "multipart_parts" => []}) }
-    assert_raises(Tus::NotFound) { @storage.read_info("foo") }
-    assert_raises(Tus::NotFound) { @storage.get_file("foo") }
+  describe "#update_info" do
+    it "creates an object which stores info" do
+      @storage.client.stub_responses(:put_object, -> (context) {
+        assert_equal "uid.info", context.params[:key]
+        @storage.client.stub_responses(:get_object, body: StringIO.new(context.params[:body]))
+      })
+
+      @storage.update_info("uid", {"Key" => "Value"})
+
+      assert_equal '{"Key":"Value"}', @storage.bucket.object("uid.info").get.body.string
+    end
+  end
+
+  describe "#get_file" do
+    it "retrieves a response object" do
+      @storage.client.stub_responses(:get_object, -> (context) {
+        assert_equal "uid", context.params[:key]
+        { body: "content" }
+      })
+      @storage.client.stub_responses(:head_object, -> (context) {
+        assert_equal "uid", context.params[:key]
+        { content_length: 7 }
+      })
+
+      response = @storage.get_file("uid")
+
+      assert_equal 7,           response.length
+      assert_equal ["content"], response.each.to_a
+      response.close
+    end
+
+    it "accepts byte ranges" do
+      @storage.client.stub_responses(:get_object, -> (context) {
+        match = context.params.fetch(:range).match(/(\d+)-(\d+)/)
+        from, to = match.values_at(1, 2).map(&:to_i)
+
+        { body: "content"[from..to] }
+      })
+      @storage.client.stub_responses(:head_object, content_length: 3)
+
+      response = @storage.get_file("uid", range: 2..4)
+
+      assert_equal 3,       response.length
+      assert_equal ["nte"], response.each.to_a
+    end
+
+    it "raises a Tus::NotFound error on missing object" do
+      @storage.client.stub_responses(:get_object, "NoSuchKey")
+
+      assert_raises(Tus::NotFound) { @storage.get_file("uid") }
+    end
+  end
+
+  describe "#delete_file" do
+    before do
+      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
+      @storage.create_file("uid", @info = {})
+    end
+
+    it "deletes multipart upload and info object if upload is not finished" do
+      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
+        assert_equal "upload_id", context.params[:upload_id]
+        assert_equal "uid",       context.params[:key]
+        @storage.client.stub_responses(:list_multipart_uploads, [])
+      })
+      @storage.client.stub_responses(:delete_objects, -> (context) {
+        assert_equal [{key: "uid.info"}], context.params[:delete][:objects]
+        @storage.client.stub_responses(:get_object, "NoSuchKey")
+      })
+
+      @storage.delete_file("uid", @info)
+
+      assert_equal [], @storage.bucket.multipart_uploads.to_a
+      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid.info").get }
+    end
+
+    it "deletes content object and info object if upload is finished" do
+      @storage.finalize_file("uid", @info)
+      @storage.client.stub_responses(:delete_objects, -> (context) {
+        assert_equal [{key: "uid"}, {key: "uid.info"}], context.params[:delete][:objects]
+        @storage.client.stub_responses(:get_object, "NoSuchKey")
+      })
+
+      @storage.delete_file("uid", @info)
+
+      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid").get }
+      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid.info").get }
+    end
+
+    it "doesn't raise error when multipart upload doesn't exist" do
+      @storage.client.stub_responses(:abort_multipart_upload, "NoSuchUpload")
+      @storage.delete_file("uid")
+    end
+  end
+
+  describe "#expire_files" do
+    before do
+      @expiration_date = Time.now.utc
+    end
+
+    it "delets objects that are past the expiration date" do
+      @storage.client.stub_responses(:list_objects, contents: [
+        { key: "uid1", last_modified: @expiration_date - 1 },
+        { key: "uid2", last_modified: @expiration_date },
+        { key: "uid3", last_modified: @expiration_date + 1 },
+      ])
+      @storage.client.stub_responses(:delete_objects, -> (context) {
+        assert_equal [{key: "uid1"}, {key: "uid2"}], context.params[:delete][:objects]
+        @storage.client.stub_responses(:get_object, "NoSuchKey")
+      })
+
+      @storage.expire_files(@expiration_date)
+
+      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid1").get }
+      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid2").get }
+    end
+
+    it "deletes multipart uploads which are past the expiration date" do
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [
+        { upload_id: "upload_id1", key: "uid1", initiated: @expiration_date + 1 },
+        { upload_id: "upload_id2", key: "uid2", initiated: @expiration_date },
+        { upload_id: "upload_id3", key: "uid3", initiated: @expiration_date - 1},
+        { upload_id: "upload_id4", key: "uid4", initiated: @expiration_date - 1},
+      ])
+      deleted_multipart_uploads = []
+      @storage.client.stub_responses(:list_parts, -> (context) {
+        case context.params[:upload_id]
+        when *deleted_multipart_uploads
+          { parts: [] }
+        when "upload_id1"
+          { parts: [] }
+        when "upload_id2"
+          { parts: [] }
+        when "upload_id3"
+          { parts: [{ part_number: 1, last_modified: @expiration_date - 1 }] }
+        when "upload_id4"
+          { parts: [{ part_number: 1, last_modified: @expiration_date - 1 },
+                    { part_number: 2, last_modified: @expiration_date + 1 }] }
+        end
+      })
+      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
+        deleted_multipart_uploads << context.params[:upload_id]
+      })
+
+      @storage.expire_files(@expiration_date)
+
+      assert_equal ["upload_id2", "upload_id3"], deleted_multipart_uploads
+    end
   end
 end
