@@ -301,7 +301,7 @@ the underlying tus storage, instead of downloading them through the app.
 Run tests with
 
 ```
-$ rake test
+$ bundle exec rake test
 ```
 
 ## Inspiration

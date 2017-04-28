@@ -19,6 +19,6 @@ matrix:
     - rvm: ruby-head
     - rvm: jruby-head
 
-script: rake test
+script: bundle exec rake test
 
 cache: bundler
