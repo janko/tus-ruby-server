@@ -22,3 +22,6 @@ matrix:
 script: bundle exec rake test
 
 cache: bundler
+
+services:
+  - mongodb
