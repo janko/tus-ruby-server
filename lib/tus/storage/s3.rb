@@ -155,7 +155,7 @@ module Tus
         delete(old_objects)
 
         bucket.multipart_uploads.each do |multipart_upload|
-          next unless multipart_upload.initiated <= expiration_date
+          next if multipart_upload.initiated > expiration_date
           most_recent_part = multipart_upload.parts.sort_by(&:last_modified).last
           if most_recent_part.nil? || most_recent_part.last_modified <= expiration_date
             abort_multipart_upload(multipart_upload)
