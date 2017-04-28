@@ -12,8 +12,6 @@ Aws.eager_autoload!(services: ["S3"])
 module Tus
   module Storage
     class S3
-      MIN_PART_SIZE = 5 * 1024 * 1024
-
       attr_reader :client, :bucket, :prefix, :upload_options
 
       def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)

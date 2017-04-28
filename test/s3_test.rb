@@ -9,7 +9,6 @@ require "stringio"
 describe Tus::Storage::S3 do
   before do
     @storage = s3
-    capture_io { Tus::Storage::S3.const_set(:MIN_PART_SIZE, 0) }
   end
 
   def s3(**options)
