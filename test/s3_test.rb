@@ -190,24 +190,14 @@ describe Tus::Storage::S3 do
         assert_equal "uid", context.params[:key]
         { upload_id: "upload_id" }
       })
-      @storage.client.stub_responses(:upload_part_copy, [
-        -> (context) {
-          assert_equal "uid",                 context.params[:key]
-          assert_equal "upload_id",           context.params[:upload_id]
-          assert_equal 1,                     context.params[:part_number]
-          assert_equal "my-bucket/part_uid1", context.params[:copy_source]
+      @storage.client.stub_responses(:upload_part_copy, -> (context) {
+        assert_equal "uid",                       context.params[:key]
+        assert_equal "upload_id",                 context.params[:upload_id]
+        assert_includes [1, 2],                   context.params[:part_number]
+        assert_match %r{my-bucket/part_uid(1|2)}, context.params[:copy_source]
 
-          { copy_part_result: { etag: "etag1" } }
-        },
-        -> (context) {
-          assert_equal "uid",                 context.params[:key]
-          assert_equal "upload_id",           context.params[:upload_id]
-          assert_equal 2,                     context.params[:part_number]
-          assert_equal "my-bucket/part_uid2", context.params[:copy_source]
-
-          { copy_part_result: { etag: "etag2" } }
-        },
-      ])
+        { copy_part_result: { etag: "etag#{context.params[:part_number]}" } }
+      })
       @storage.client.stub_responses(:complete_multipart_upload, -> (context) {
         assert_equal "uid",       context.params[:key]
         assert_equal "upload_id", context.params[:upload_id]
