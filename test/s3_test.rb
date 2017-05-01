@@ -231,18 +231,6 @@ describe Tus::Storage::S3 do
       })
       assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
       assert_equal [], @storage.bucket.multipart_uploads.to_a
-
-      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id", key: "uid")
-      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
-      @storage.client.stub_responses(:upload_part_copy, copy_part_result: { etag: "etag" })
-      @storage.client.stub_responses(:complete_multipart_upload, "TimeoutError")
-      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
-        assert_equal "upload_id", context.params[:upload_id]
-        assert_equal "uid",       context.params[:key]
-        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
-      })
-      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
-      assert_equal [], @storage.bucket.multipart_uploads.to_a
     end
   end
 
