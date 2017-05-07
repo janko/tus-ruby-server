@@ -91,16 +91,16 @@ module Tus
       def get_file(uid, info = {}, range: nil)
         grid_info = find_grid_info!(uid)
 
-        range ||= 0..(grid_info[:length] - 1)
-        length = range.size
+        length = range ? range.size : grid_info[:length]
 
-        chunk_start = range.begin / grid_info[:chunkSize]
-        chunk_stop  = range.end   / grid_info[:chunkSize]
+        filter = { files_id: grid_info[:_id] }
 
-        filter = {
-          files_id: grid_info[:_id],
-          n: {"$gte" => chunk_start, "$lte" => chunk_stop}
-        }
+        if range
+          chunk_start = range.begin / grid_info[:chunkSize]
+          chunk_stop  = range.end   / grid_info[:chunkSize]
+
+          filter[:n] = {"$gte" => chunk_start, "$lte" => chunk_stop}
+        end
 
         # Query only the subset of chunks specified by the range query. We
         # cannot use Mongo::FsBucket#open_download_stream here because it
