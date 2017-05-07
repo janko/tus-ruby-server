@@ -265,42 +265,41 @@ describe Tus::Storage::S3 do
   end
 
   describe "#get_file" do
-    it "retrieves a response object" do
+    it "retrieves a response object which streams content" do
       @storage.client.stub_responses(:get_object, -> (context) {
         assert_equal "uid", context.params[:key]
         { body: "content" }
       })
-      @storage.client.stub_responses(:head_object, -> (context) {
-        assert_equal "uid", context.params[:key]
-        { content_length: 7 }
-      })
 
       response = @storage.get_file("uid")
 
-      assert_equal 7,           response.length
       assert_equal ["content"], response.each.to_a
-      response.close
+      response.close # responds to close
     end
 
     it "accepts byte ranges" do
       @storage.client.stub_responses(:get_object, -> (context) {
-        match = context.params.fetch(:range).match(/(\d+)-(\d+)/)
-        from, to = match.values_at(1, 2).map(&:to_i)
+        from, to = context.params.fetch(:range)[/\d+-\d+/].split("-").map(&:to_i)
 
         { body: "content"[from..to] }
       })
-      @storage.client.stub_responses(:head_object, content_length: 3)
 
       response = @storage.get_file("uid", range: 2..4)
 
-      assert_equal 3,       response.length
       assert_equal ["nte"], response.each.to_a
     end
 
-    it "raises a Tus::NotFound error on missing object" do
-      @storage.client.stub_responses(:get_object, "NoSuchKey")
+    it "calculates content length" do
+      @storage.client.stub_responses(:get_object, -> (context) {
+        assert_equal "uid", context.params[:key]
+        { body: "content" }
+      })
 
-      assert_raises(Tus::NotFound) { @storage.get_file("uid") }
+      response = @storage.get_file("uid", { "Upload-Length" => 7 })
+      assert_equal 7, response.length
+
+      response = @storage.get_file("uid", { "Upload-Length" => 7 }, range: 2..4)
+      assert_equal 3, response.length
     end
   end
 

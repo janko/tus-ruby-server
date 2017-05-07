@@ -112,26 +112,15 @@ module Tus
       end
 
       def get_file(uid, info = {}, range: nil)
-        object = object(uid)
+        tus_info = Tus::Info.new(info)
+
+        length = range ? range.size : tus_info.length
         range  = "bytes=#{range.begin}-#{range.end}" if range
+        chunks = object(uid).enum_for(:get, range: range)
 
-        raw_chunks = object.enum_for(:get, range: range)
-
-        # Start the request to be notified if the object doesn't exist, and to
-        # get Aws::S3::Object#content_length.
-        first_chunk = raw_chunks.next
-
-        chunks = Enumerator.new do |yielder|
-          yielder << first_chunk              # first chunk
-          loop { yielder << raw_chunks.next } # rest of the chunks
-        end
-
-        Response.new(
-          chunks: chunks,
-          length: object.content_length,
-        )
-      rescue Aws::S3::Errors::NoSuchKey
-        raise Tus::NotFound
+        # We return a response object that responds to #each, #length and #close,
+        # which the tus server can return directly as the Rack response.
+        Response.new(chunks: chunks, length: length)
       end
 
       def delete_file(uid, info = {})
