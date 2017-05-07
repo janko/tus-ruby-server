@@ -92,7 +92,7 @@ module Tus
         grid_info = find_grid_info!(uid)
 
         range ||= 0..(grid_info[:length] - 1)
-        length = range.end - range.begin + 1
+        length = range.size
 
         chunk_start = range.begin / grid_info[:chunkSize]
         chunk_stop  = range.end   / grid_info[:chunkSize]

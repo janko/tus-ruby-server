@@ -70,14 +70,13 @@ module Tus
         exists!(uid)
 
         file = file_path(uid).open("rb")
-        range ||= 0..(file.size - 1)
-        length = range.end - range.begin + 1
+        length = range ? range.size : file.size
 
         # Create an Enumerator which will yield chunks of the requested file
         # content, allowing tus server to efficiently stream requested content
         # to the client.
         chunks = Enumerator.new do |yielder|
-          file.seek(range.begin)
+          file.seek(range.begin) if range
           remaining_length = length
 
           while remaining_length > 0
