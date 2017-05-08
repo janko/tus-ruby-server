@@ -5,7 +5,7 @@ require "tus/checksum"
 require "tus/errors"
 
 require "json"
-require "cgi/util"
+require "cgi"
 
 Aws.eager_autoload!(services: ["S3"])
 
