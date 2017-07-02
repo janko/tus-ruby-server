@@ -1,5 +1,7 @@
 module Tus
   class Checksum
+    CHUNK_SIZE = 16*1024
+
     attr_reader :algorithm
 
     def self.generate(algorithm, input)
@@ -45,15 +47,19 @@ module Tus
     def generate_crc32(io)
       require "zlib"
       require "base64"
-      crc = 0
-      crc = Zlib.crc32(io.read(16*1024, buffer ||= ""), crc) until io.eof?
+      crc = Zlib.crc32("")
+      while (data = io.read(CHUNK_SIZE, buffer ||= ""))
+        crc = Zlib.crc32(data, crc)
+      end
       Base64.strict_encode64(crc.to_s)
     end
 
     def digest(name, io)
       require "digest"
       digest = Digest.const_get(name).new
-      digest.update(io.read(16*1024, buffer ||= "")) until io.eof?
+      while (data = io.read(CHUNK_SIZE, buffer ||= ""))
+        digest.update(data)
+      end
       digest.base64digest
     end
   end
