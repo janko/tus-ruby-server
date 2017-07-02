@@ -1,7 +1,6 @@
 require "aws-sdk"
 
 require "tus/info"
-require "tus/checksum"
 require "tus/errors"
 
 require "json"
@@ -75,9 +74,8 @@ module Tus
 
         multipart_upload = object(uid).multipart_upload(upload_id)
         multipart_part   = multipart_upload.part(part_number)
-        md5              = Tus::Checksum.new("md5").generate(input)
 
-        response = multipart_part.upload(body: input, content_md5: md5)
+        response = multipart_part.upload(body: input)
 
         info["multipart_parts"] << {
           "part_number" => part_number,
