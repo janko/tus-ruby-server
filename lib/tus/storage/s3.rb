@@ -5,6 +5,7 @@ require "tus/errors"
 
 require "json"
 require "cgi"
+require "fiber"
 
 Aws.eager_autoload!(services: ["S3"])
 
@@ -223,18 +224,39 @@ module Tus
         def initialize(chunks:, length:)
           @chunks = chunks
           @length = length
+
+          retrieve_chunk
         end
 
         def length
           @length
         end
 
-        def each(&block)
-          @chunks.each(&block)
+        def each
+          return enum_for(__method__) unless block_given?
+
+          yield retrieve_chunk while chunks_fiber.alive?
         end
 
         def close
-          # aws-sdk doesn't provide an API to terminate the HTTP connection
+          chunks_fiber.resume(:close) if chunks_fiber.alive?
+        end
+
+        private
+
+        def retrieve_chunk
+          chunk = @next_chunk
+          @next_chunk = chunks_fiber.resume
+          chunk
+        end
+
+        def chunks_fiber
+          @chunks_fiber ||= Fiber.new do
+            @chunks.each do |chunk|
+              action = Fiber.yield chunk
+              break if action == :close
+            end
+          end
         end
       end
     end
