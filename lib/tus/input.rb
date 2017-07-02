@@ -1,18 +1,24 @@
+require "tus/errors"
+
+require "tempfile"
+require "stringio"
+
 module Tus
   class Input
-    def initialize(input)
-      @input = input
-      @bytes_read = 0
+    def initialize(input, content_length: nil, limit: nil)
+      @input          = input
+      @content_length = content_length
+      @limit          = limit
+      @bytes_read     = 0
     end
 
     def read(*args)
       result = @input.read(*args)
-      @bytes_read += result.bytesize if result.is_a?(String)
-      result
-    end
 
-    def eof?
-      @bytes_read == size
+      @bytes_read += result.bytesize if result
+      raise MaxSizeExceeded if @limit && @bytes_read > @limit
+
+      result
     end
 
     def rewind
@@ -21,15 +27,19 @@ module Tus
     end
 
     def size
-      if defined?(Rack::Lint) && @input.is_a?(Rack::Lint::InputWrapper)
-        @input.instance_variable_get("@input").size
-      else
+      if @input.is_a?(Tempfile) || @input.is_a?(StringIO)
         @input.size
+      else
+        @content_length
       end
     end
 
     def close
       # Rack input shouldn't be closed, we just support the interface
+    end
+
+    def bytes_read
+      @bytes_read
     end
   end
 end

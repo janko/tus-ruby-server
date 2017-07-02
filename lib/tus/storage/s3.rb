@@ -6,21 +6,25 @@ require "tus/errors"
 require "json"
 require "cgi"
 require "fiber"
+require "tempfile"
 
 Aws.eager_autoload!(services: ["S3"])
 
 module Tus
   module Storage
     class S3
+      MIN_PART_SIZE = 5 * 1024 * 1024 # 5MB is the minimum part size for S3 multipart uploads
+
       attr_reader :client, :bucket, :prefix, :upload_options
 
-      def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
+      def initialize(bucket:, prefix: nil, upload_options: {}, batch_size: MIN_PART_SIZE, thread_count: 10, **client_options)
         resource = Aws::S3::Resource.new(**client_options)
 
         @client         = resource.client
-        @bucket         = resource.bucket(bucket)
+        @bucket         = resource.bucket(bucket) or fail(ArgumentError, "the :bucket option was nil")
         @prefix         = prefix
         @upload_options = upload_options
+        @batch_size     = batch_size
         @thread_count   = thread_count
       end
 
@@ -53,9 +57,7 @@ module Tus
         objects = part_uids.map { |part_uid| object(part_uid) }
         parts   = copy_parts(objects, multipart_upload)
 
-        parts.each do |part|
-          info["multipart_parts"] << { "part_number" => part[:part_number], "etag" => part[:etag] }
-        end
+        info["multipart_parts"].concat parts
 
         finalize_file(uid, info)
 
@@ -71,19 +73,37 @@ module Tus
 
       def patch_file(uid, input, info = {})
         upload_id   = info["multipart_id"]
-        part_number = info["multipart_parts"].count + 1
+        part_offset = info["multipart_parts"].count
 
-        multipart_upload = object(uid).multipart_upload(upload_id)
-        multipart_part   = multipart_upload.part(part_number)
+        if input.size
+          part = upload_part(input, uid, upload_id, part_offset + 1)
+          info["multipart_parts"] << part
+        else
+          jobs  = []
+          chunk = copy_to_tempfile(input, @batch_size)
 
-        response = multipart_part.upload(body: input)
+          until chunk.closed?
+            next_chunk = copy_to_tempfile(input, @batch_size)
 
-        info["multipart_parts"] << {
-          "part_number" => part_number,
-          "etag"        => response.etag,
-        }
-      rescue Aws::S3::Errors::NoSuchUpload
-        raise Tus::NotFound
+            if next_chunk.size < MIN_PART_SIZE
+              chunk.seek(0, :END)
+              copy_stream(next_chunk, chunk)
+              next_chunk.close!
+            end
+
+            jobs << [
+              upload_part_thread(chunk, uid, upload_id, part_offset += 1),
+              chunk
+            ]
+
+            chunk = next_chunk
+          end
+
+          jobs.each do |thread, body|
+            info["multipart_parts"] << thread.value
+            body.close!
+          end
+        end
       end
 
       def finalize_file(uid, info = {})
@@ -93,7 +113,7 @@ module Tus
         end
 
         multipart_upload = object(uid).multipart_upload(upload_id)
-        multipart_upload.complete(multipart_upload: {parts: parts})
+        multipart_upload.complete(multipart_upload: { parts: parts })
 
         info.delete("multipart_id")
         info.delete("multipart_parts")
@@ -153,10 +173,38 @@ module Tus
 
       private
 
+      def upload_part_thread(body, key, upload_id, part_number)
+        Thread.new do
+          upload_part(body, key, upload_id, part_number)
+        end
+      end
+
+      def upload_part(body, key, upload_id, part_number)
+        multipart_upload = object(key).multipart_upload(upload_id)
+        multipart_part   = multipart_upload.part(part_number)
+
+        response = multipart_part.upload(body: body)
+
+        { "part_number" => part_number, "etag" => response.etag }
+      rescue Aws::S3::Errors::NoSuchUpload
+        raise Tus::NotFound
+      end
+
+      def copy_to_tempfile(io, bytes)
+        tempfile = Tempfile.new("tus-s3", binmode: true)
+        copy_stream(io, tempfile, bytes)
+        tempfile
+      end
+
+      def copy_stream(from_io, to_io, bytes = nil)
+        IO.copy_stream(from_io, to_io, bytes)
+        to_io.rewind
+      end
+
       def delete(objects)
         # S3 can delete maximum of 1000 objects in a single request
         objects.each_slice(1000) do |objects_batch|
-          delete_params = {objects: objects_batch.map { |object| {key: object.key} }}
+          delete_params = { objects: objects_batch.map { |object| { key: object.key } } }
           bucket.delete_objects(delete: delete_params)
         end
       end
@@ -179,7 +227,7 @@ module Tus
 
         threads = @thread_count.times.map { copy_part_thread(queue) }
 
-        threads.flat_map(&:value).sort_by { |part| part[:part_number] }
+        threads.flat_map(&:value).sort_by { |part| part["part_number"] }
       end
 
       def compute_parts(objects, multipart_upload)
@@ -213,7 +261,7 @@ module Tus
       def copy_part(part)
         response = client.upload_part_copy(part)
 
-        { part_number: part[:part_number], etag: response.copy_part_result.etag }
+        { "part_number" => part[:part_number], "etag" => response.copy_part_result.etag }
       end
 
       def object(key)

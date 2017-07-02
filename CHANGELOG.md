@@ -1,5 +1,7 @@
 ## HEAD
 
+* Improve streaming on dynamic Rack inputs such as `TeeInput` from Unicorn/Passenger for S3 and Gridfs storage (@janko-m)
+
 * Terminate HTTP connection to S3 when response is closed (@janko-m)
 
 * Allow `Transfer-Encoding: chunked` to be used, meaning `Content-Length` can be blank (@janko-m)

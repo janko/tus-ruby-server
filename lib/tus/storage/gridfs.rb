@@ -8,6 +8,8 @@ require "digest"
 module Tus
   module Storage
     class Gridfs
+      BATCH_SIZE = 5 * 1024 * 1024
+
       attr_reader :client, :prefix, :bucket, :chunk_size
 
       def initialize(client:, prefix: "fs", chunk_size: 256*1024)
@@ -47,7 +49,10 @@ module Tus
         grid_infos.inject(0) do |offset, grid_info|
           result = chunks_collection
             .find(files_id: grid_info[:_id])
-            .update_many("$set" => {files_id: grid_file.id}, "$inc" => {n: offset})
+            .update_many(
+              "$set" => { files_id: grid_file.id },
+              "$inc" => { n: offset },
+            )
 
           offset += result.modified_count
         end
@@ -60,20 +65,41 @@ module Tus
       end
 
       def patch_file(uid, input, info = {})
-        grid_info = find_grid_info!(uid)
+        grid_info      = find_grid_info!(uid)
+        current_length = grid_info[:length]
+        chunk_size     = grid_info[:chunkSize]
 
-        patch_last_chunk(input, grid_info)
+        patch_last_chunk(input, grid_info) if current_length % chunk_size != 0
 
-        grid_chunks = split_into_grid_chunks(input, grid_info)
-        chunks_collection.insert_many(grid_chunks)
-        grid_chunks.each { |grid_chunk| grid_chunk.data.data.clear } # deallocate strings
+        chunks_enumerator = Enumerator.new do |yielder|
+          while (data = input.read(chunk_size))
+            yielder << data
+          end
+        end
 
-        # Update the total length and refresh the upload date on each update,
-        # which are used in #get_file, #concatenate and #expire_files.
-        files_collection.find(filename: uid).update_one("$set" => {
-          length:     grid_info[:length] + input.size,
-          uploadDate: Time.now.utc,
-        })
+        chunks_in_batch = (BATCH_SIZE.to_f / chunk_size).ceil
+        chunks_offset   = chunks_collection.count(files_id: grid_info[:_id]) - 1
+
+        chunks_enumerator.each_slice(chunks_in_batch) do |chunks|
+          grid_chunks = chunks.map do |data|
+            Mongo::Grid::File::Chunk.new(
+              data: BSON::Binary.new(data),
+              files_id: grid_info[:_id],
+              n: chunks_offset += 1,
+            )
+          end
+
+          chunks_collection.insert_many(grid_chunks)
+
+          # Update the total length and refresh the upload date on each update,
+          # which are used in #get_file, #concatenate and #expire_files.
+          files_collection.find(filename: uid).update_one(
+            "$inc" => { length: chunks.inject(0) { |sum, data| sum + data.bytesize } },
+            "$set" => { uploadDate: Time.now.utc },
+          )
+
+          chunks.each(&:clear) # deallocate strings
+        end
       end
 
       def read_info(uid)
@@ -164,25 +190,17 @@ module Tus
         grid_file
       end
 
-      def split_into_grid_chunks(io, grid_info)
-        grid_info[:md5] = Digest::MD5.new # hack for `Chunk.split` updating MD5
-        grid_info = Mongo::Grid::File::Info.new(Mongo::Options::Mapper.transform(grid_info, Mongo::Grid::File::Info::MAPPINGS.invert))
-        offset = chunks_collection.count(files_id: grid_info.id)
-
-        Mongo::Grid::File::Chunk.split(io, grid_info, offset)
-      end
-
       def patch_last_chunk(input, grid_info)
-        if grid_info[:length] % grid_info[:chunkSize] != 0
-          last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).limit(1).first
-          data = last_chunk[:data].data
-          data << input.read(grid_info[:chunkSize] - data.length)
+        last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).limit(1).first
+        data = last_chunk[:data].data
+        patch = input.read(grid_info[:chunkSize] - data.bytesize)
+        data << patch
 
-          chunks_collection.find(files_id: grid_info[:_id], n: last_chunk[:n])
-            .update_one("$set" => {data: BSON::Binary.new(data)})
+        chunks_collection.find(files_id: grid_info[:_id], n: last_chunk[:n])
+          .update_one("$set" => { data: BSON::Binary.new(data) })
 
-          data.clear # deallocate string
-        end
+        files_collection.find(_id: grid_info[:_id])
+          .update_one("$inc" => { length: patch.bytesize })
       end
 
       def find_grid_info!(uid)

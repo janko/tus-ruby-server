@@ -1,8 +1,6 @@
 require "test_helper"
 require "tus/storage/s3"
 
-require "aws-sdk"
-
 require "base64"
 require "stringio"
 
@@ -12,8 +10,7 @@ describe Tus::Storage::S3 do
   end
 
   def s3(**options)
-    options[:stub_responses] ||= true
-    options[:bucket]         ||= "my-bucket"
+    options = { stub_responses: true, bucket: "my-bucket" }.merge(options)
 
     Tus::Storage::S3.new(options)
   end
@@ -31,6 +28,10 @@ describe Tus::Storage::S3 do
       assert_equal "xyz",       storage.client.config.secret_access_key
       assert_equal "eu-west-1", storage.client.config.region
       assert_equal "tus",       storage.bucket.name
+    end
+
+    it "raises explanatory error when :bucket was nil" do
+      assert_raises(ArgumentError) { s3(bucket: nil) }
     end
   end
 
@@ -110,11 +111,10 @@ describe Tus::Storage::S3 do
 
     it "uploads the input as a multipart part" do
       @storage.client.stub_responses(:upload_part, -> (context) {
-        assert_equal "upload_id",                context.params[:upload_id]
-        assert_equal "uid",                      context.params[:key]
-        assert_equal 1,                          context.params[:part_number]
-        assert_equal "mgNkuembtIDdJeHwKEyFVQ==", context.params[:content_md5]
-        assert_equal "content",                  context.params[:body].read
+        assert_equal "upload_id", context.params[:upload_id]
+        assert_equal "uid",       context.params[:key]
+        assert_equal 1,           context.params[:part_number]
+        assert_equal "content",   context.params[:body].read
 
         { etag: "etag" }
       })
@@ -140,11 +140,66 @@ describe Tus::Storage::S3 do
       assert_equal parts, @info["multipart_parts"]
     end
 
+    it "uploads in batches when input size is not known" do
+      input = RackInput.new([
+        "a" * 5 * 1024 * 1024,
+        "b" * 5 * 1024 * 1024,
+      ].join)
+
+      @storage.client.stub_responses(:upload_part, -> (context) {
+        part_number, body = context.params.values_at(:part_number, :body)
+
+        case part_number
+        when 1 then assert_equal "a" * 5 * 1024 * 1024, body.read
+        when 2 then assert_equal "b" * 5 * 1024 * 1024, body.read
+        end
+
+        { etag: "etag#{part_number}" }
+      })
+
+      @storage.patch_file("uid", Tus::Input.new(input), @info)
+
+      parts = [{ "part_number" => 1, "etag" => "etag1" },
+               { "part_number" => 2, "etag" => "etag2" }]
+
+      assert_equal parts, @info["multipart_parts"]
+    end
+
+    it "merges last chunk into previous if it's smaller than minimum allowed" do
+      input = RackInput.new([
+        "a" * 5 * 1024 * 1024,
+        "b" * 5 * 1024 * 1024,
+        "c",
+      ].join)
+
+      @storage.client.stub_responses(:upload_part, -> (context) {
+        part_number, body = context.params.values_at(:part_number, :body)
+
+        case part_number
+        when 1 then assert_equal "a" * 5 * 1024 * 1024,       body.read
+        when 2 then assert_equal "b" * 5 * 1024 * 1024 + "c", body.read
+        end
+
+        { etag: "etag#{part_number}" }
+      })
+
+      @storage.patch_file("uid", Tus::Input.new(input), @info)
+
+      parts = [{ "part_number" => 1, "etag" => "etag1" },
+               { "part_number" => 2, "etag" => "etag2" }]
+
+      assert_equal parts, @info["multipart_parts"]
+    end
+
     it "raises Tus::NotFound when multipart upload is missing" do
       @storage.client.stub_responses(:upload_part, "NoSuchUpload")
 
       assert_raises(Tus::NotFound) do
         @storage.patch_file("uid", StringIO.new("content"), @info)
+      end
+
+      assert_raises(Tus::NotFound) do
+        @storage.patch_file("uid", Tus::Input.new(RackInput.new("content")), @info)
       end
     end
   end

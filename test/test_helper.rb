@@ -7,10 +7,14 @@ require "minitest/pride"
 
 require "tus-server"
 
-class Rack::Lint::InputWrapper
-  # All major web servers have inputs that respond to this method, and we
-  # need it for implementation of `Tus::Input#eof?`.
-  def size
-    @input.size
+require "stringio"
+require "forwardable"
+
+class RackInput
+  def initialize(content)
+    @io = StringIO.new(content)
   end
+
+  extend Forwardable
+  delegate [:read, :rewind, :gets, :each, :close] => :@io
 end

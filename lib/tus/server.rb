@@ -115,18 +115,18 @@ module Tus
           if info.defer_length? && request.headers["Upload-Length"]
             validate_upload_length!
 
-            info["Upload-Length"] = request.headers["Upload-Length"]
+            info["Upload-Length"]       = request.headers["Upload-Length"]
             info["Upload-Defer-Length"] = nil
           end
 
           validate_content_type!
-          validate_content_length!(info.offset, info.length)
           validate_upload_offset!(info.offset)
+          validate_content_length!(info.offset, info.length) if input.size
           validate_upload_checksum! if request.headers["Upload-Checksum"]
 
           storage.patch_file(uid, input, info.to_h)
 
-          info["Upload-Offset"] = (info.offset + input.size).to_s
+          info["Upload-Offset"] = (info.offset + input.bytes_read).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           if info.offset == info.length # last chunk
@@ -146,7 +146,7 @@ module Tus
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
           metadata = info.metadata
-          response.headers["Content-Disposition"] = opts[:disposition]
+          response.headers["Content-Disposition"]  = opts[:disposition]
           response.headers["Content-Disposition"] += "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
 
@@ -167,11 +167,21 @@ module Tus
 
     error do |exception|
       not_found! if exception.is_a?(Tus::NotFound)
+      too_large! if exception.is_a?(Tus::MaxSizeExceeded)
       raise
     end
 
     def input
-      @input ||= Tus::Input.new(request.body)
+      @input ||= (
+        content_length = Integer(request.content_length) if request.content_length
+
+        offset   = Integer(request.headers["Upload-Offset"])
+        total    = Integer(request.headers["Upload-Length"]) if request.headers["Upload-Length"]
+        total  ||= max_size
+        limit    = total - offset if total
+
+        Tus::Input.new(request.body, content_length: content_length, limit: limit)
+      )
     end
 
     def validate_content_type!
@@ -211,10 +221,10 @@ module Tus
       end
     end
 
-    def validate_content_length!(current_offset, length)
-      if length
-        error!(403, "Cannot modify completed upload") if current_offset == length
-        error!(413, "Size of this chunk surpasses Upload-Length") if input.size + current_offset > length
+    def validate_content_length!(current_offset, total_length)
+      if total_length
+        error!(403, "Cannot modify completed upload") if current_offset == total_length
+        error!(413, "Size of this chunk surpasses Upload-Length") if input.size + current_offset > total_length
       elsif max_size
         error!(413, "Size of this chunk surpasses Tus-Max-Size") if input.size + current_offset > max_size
       end
@@ -314,8 +324,12 @@ module Tus
       request.halt
     end
 
-    def not_found!(message = "Upload not found")
+    def not_found!(message = "Upload Not Found")
       error!(404, message)
+    end
+
+    def too_large!(message = "Chunk Too Large")
+      error!(413, message)
     end
 
     def error!(status, message)

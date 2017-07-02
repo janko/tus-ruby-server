@@ -300,7 +300,7 @@ describe Tus::Server do
       refute response.headers.key?("Content-Type")
     end
 
-    it "doesn't require 'Content-Length' header" do
+    it "doesn't require Content-Length header" do
       response = @app.post "/files", options(headers: {"Upload-Length" => "100"})
       file_path = URI(response.location).path
       env = Rack::TestApp.new_env(:PATCH, file_path, options(

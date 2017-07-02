@@ -122,11 +122,13 @@ describe Tus::Storage::Gridfs do
     end
 
     it "updates :length and :uploadDate" do
+      @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")
       original_info = @storage.bucket.files_collection.find(filename: "foo").first
       @storage.patch_file("foo", StringIO.new("hello"))
+      @storage.patch_file("foo", StringIO.new(" world"))
       new_info = @storage.bucket.files_collection.find(filename: "foo").first
-      assert_equal 5, new_info[:length]
+      assert_equal 11, new_info[:length]
       assert_operator new_info[:uploadDate], :>, original_info[:uploadDate]
     end
 
