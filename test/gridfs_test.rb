@@ -84,8 +84,8 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("a")
       @storage.create_file("b")
       @storage.concatenate("ab", ["a", "b"])
-      assert_raises(Tus::NotFound) { @storage.get_file("a") }
-      assert_raises(Tus::NotFound) { @storage.get_file("b") }
+      assert_raises(Tus::NotFound) { @storage.read_info("a") }
+      assert_raises(Tus::NotFound) { @storage.read_info("b") }
     end
 
     it "raises an error when parts are missing" do
@@ -131,10 +131,6 @@ describe Tus::Storage::Gridfs do
       assert_equal 11, new_info[:length]
       assert_operator new_info[:uploadDate], :>, original_info[:uploadDate]
     end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.patch_file("unknown", StringIO.new("hello")) }
-    end
   end
 
   describe "#get_file" do
@@ -161,10 +157,6 @@ describe Tus::Storage::Gridfs do
 
       response = @storage.get_file("foo", range: 4..6)
       assert_equal ["o ", "w"], response.each.to_a
-    end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.get_file("unknown") }
     end
   end
 
@@ -207,10 +199,6 @@ describe Tus::Storage::Gridfs do
       @storage.create_file("foo", {"Foo" => "Foo"})
       @storage.update_info("foo", {"Bar" => "Bar"})
       assert_equal Hash["Bar" => "Bar"], @storage.read_info("foo")
-    end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.update_info("unknown", {}) }
     end
   end
 

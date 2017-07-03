@@ -73,8 +73,8 @@ describe Tus::Storage::Filesystem do
       @storage.create_file("a")
       @storage.create_file("b")
       @storage.concatenate("ab", ["a", "b"])
-      assert_raises(Tus::NotFound) { @storage.get_file("a") }
-      assert_raises(Tus::NotFound) { @storage.get_file("b") }
+      assert_raises(Tus::NotFound) { @storage.read_info("a") }
+      assert_raises(Tus::NotFound) { @storage.read_info("b") }
     end
 
     it "applies correct permissions to the concatenated file" do
@@ -117,10 +117,6 @@ describe Tus::Storage::Filesystem do
       response = @storage.get_file("foo")
       assert_equal "hello world", response.each.to_a.join
     end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.patch_file("unknown", StringIO.new("hello")) }
-    end
   end
 
   describe "#read_info" do
@@ -142,10 +138,6 @@ describe Tus::Storage::Filesystem do
       @storage.update_info("foo", {"bar" => "baz"})
       @storage.update_info("foo", {"quux" => "quilt"})
       assert_equal Hash["quux" => "quilt"], @storage.read_info("foo")
-    end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.update_info("unknown", {}) }
     end
   end
 
@@ -176,10 +168,6 @@ describe Tus::Storage::Filesystem do
     it "handles multibyte characters" do
       @storage.create_file("foo")
       @storage.patch_file("foo", StringIO.new("😃"))
-    end
-
-    it "raises Tus::NotFound on missing file" do
-      assert_raises(Tus::NotFound) { @storage.get_file("unknown") }
     end
   end
 

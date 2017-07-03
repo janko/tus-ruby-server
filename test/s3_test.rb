@@ -190,18 +190,6 @@ describe Tus::Storage::S3 do
 
       assert_equal parts, @info["multipart_parts"]
     end
-
-    it "raises Tus::NotFound when multipart upload is missing" do
-      @storage.client.stub_responses(:upload_part, "NoSuchUpload")
-
-      assert_raises(Tus::NotFound) do
-        @storage.patch_file("uid", StringIO.new("content"), @info)
-      end
-
-      assert_raises(Tus::NotFound) do
-        @storage.patch_file("uid", Tus::Input.new(RackInput.new("content")), @info)
-      end
-    end
   end
 
   describe "#finalize_file" do

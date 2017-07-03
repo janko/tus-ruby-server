@@ -1,5 +1,7 @@
 ## HEAD
 
+* Include CORS and tus response headers in 404 responses (@janko-m)
+
 * Improve streaming on dynamic Rack inputs such as `TeeInput` from Unicorn/Passenger for S3 and Gridfs storage (@janko-m)
 
 * Terminate HTTP connection to S3 when response is closed (@janko-m)

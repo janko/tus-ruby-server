@@ -49,26 +49,20 @@ module Tus
       end
 
       def patch_file(uid, input, info = {})
-        exists!(uid)
-
         file_path(uid).open("ab") { |file| IO.copy_stream(input, file) }
       end
 
       def read_info(uid)
-        exists!(uid)
+        raise Tus::NotFound if !file_path(uid).exist?
 
         JSON.parse(info_path(uid).binread)
       end
 
       def update_info(uid, info)
-        exists!(uid)
-
         info_path(uid).binwrite(JSON.generate(info))
       end
 
       def get_file(uid, info = {}, range: nil)
-        exists!(uid)
-
         file = file_path(uid).open("rb")
         length = range ? range.size : file.size
 
@@ -109,10 +103,6 @@ module Tus
         paths = uids.flat_map { |uid| [file_path(uid), info_path(uid)] }
 
         FileUtils.rm_f paths
-      end
-
-      def exists!(uid)
-        raise Tus::NotFound if !file_path(uid).exist?
       end
 
       def file_path(uid)

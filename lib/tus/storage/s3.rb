@@ -186,8 +186,6 @@ module Tus
         response = multipart_part.upload(body: body)
 
         { "part_number" => part_number, "etag" => response.etag }
-      rescue Aws::S3::Errors::NoSuchUpload
-        raise Tus::NotFound
       end
 
       def copy_to_tempfile(io, bytes)

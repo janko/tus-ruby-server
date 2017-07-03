@@ -32,7 +32,6 @@ module Tus
     plugin :request_headers
     plugin :not_allowed
     plugin :streaming
-    plugin :error_handler
 
     route do |r|
       if request.headers["X-HTTP-Method-Override"]
@@ -102,7 +101,11 @@ module Tus
           no_content!
         end
 
-        info = Tus::Info.new(storage.read_info(uid))
+        begin
+          info = Tus::Info.new(storage.read_info(uid))
+        rescue Tus::NotFound
+          not_found!
+        end
 
         r.head do
           response.headers.update(info.headers)
@@ -124,7 +127,11 @@ module Tus
           validate_content_length!(info.offset, info.length) if input.size
           validate_upload_checksum! if request.headers["Upload-Checksum"]
 
-          storage.patch_file(uid, input, info.to_h)
+          begin
+            storage.patch_file(uid, input, info.to_h)
+          rescue Tus::MaxSizeExceeded
+            too_large!
+          end
 
           info["Upload-Offset"] = (info.offset + input.bytes_read).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
@@ -163,12 +170,6 @@ module Tus
           no_content!
         end
       end
-    end
-
-    error do |exception|
-      not_found! if exception.is_a?(Tus::NotFound)
-      too_large! if exception.is_a?(Tus::MaxSizeExceeded)
-      raise
     end
 
     def input

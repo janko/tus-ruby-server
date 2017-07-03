@@ -65,7 +65,7 @@ module Tus
       end
 
       def patch_file(uid, input, info = {})
-        grid_info      = find_grid_info!(uid)
+        grid_info      = files_collection.find(filename: uid).first
         current_length = grid_info[:length]
         chunk_size     = grid_info[:chunkSize]
 
@@ -103,19 +103,19 @@ module Tus
       end
 
       def read_info(uid)
-        grid_info = find_grid_info!(uid)
+        grid_info = files_collection.find(filename: uid).first or raise Tus::NotFound
 
         grid_info[:metadata]
       end
 
       def update_info(uid, info)
-        grid_info = find_grid_info!(uid)
+        grid_info = files_collection.find(filename: uid).first
 
         files_collection.update_one({filename: uid}, {"$set" => {metadata: info}})
       end
 
       def get_file(uid, info = {}, range: nil)
-        grid_info = find_grid_info!(uid)
+        grid_info = files_collection.find(filename: uid).first
 
         length = range ? range.size : grid_info[:length]
 
@@ -201,10 +201,6 @@ module Tus
 
         files_collection.find(_id: grid_info[:_id])
           .update_one("$inc" => { length: patch.bytesize })
-      end
-
-      def find_grid_info!(uid)
-        files_collection.find(filename: uid).first or raise Tus::NotFound
       end
 
       def validate_parts!(grid_infos, part_uids)
