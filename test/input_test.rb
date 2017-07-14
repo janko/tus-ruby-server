@@ -70,6 +70,22 @@ describe Tus::Input do
       @input.read(5)
       assert_raises(Tus::MaxSizeExceeded) { @input.read(1) }
     end
+
+    it "recovers from closed sockets on chunked requests when using Unicorn" do
+      require "unicorn"
+
+      rack_input = Object.new
+      rack_input.instance_eval { def read(*args) raise Unicorn::ClientShutdown end }
+
+      @input = Tus::Input.new(rack_input)
+      assert_equal "",  @input.read
+      assert_nil        @input.read(1)
+      assert_nil        @input.read(1, outbuf = "outbuf")
+      assert_equal "",  outbuf
+
+      @input = Tus::Input.new(rack_input, content_length: 10)
+      assert_raises(Unicorn::ClientShutdown) { @input.read }
+    end
   end
 
   describe "#rewind" do

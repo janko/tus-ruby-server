@@ -12,13 +12,17 @@ module Tus
       @bytes_read     = 0
     end
 
-    def read(*args)
-      result = @input.read(*args)
+    def read(length = nil, outbuf = nil)
+      result = @input.read(length, outbuf)
 
       @bytes_read += result.bytesize if result
       raise MaxSizeExceeded if @limit && @bytes_read > @limit
 
       result
+    rescue defined?(Unicorn) && Unicorn::ClientShutdown
+      raise if @content_length # we are only recovering on chunked uploads
+      outbuf = outbuf.to_s.clear
+      outbuf unless length
     end
 
     def rewind
