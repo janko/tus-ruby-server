@@ -13,7 +13,7 @@ Feature: Concatenation
       Upload-Concat: partial
       """
 
-  Scenario: Creating final upload
+  Scenario: Creating final upload from partial uploads
     Given a file
       """
       Upload-Length: 5
@@ -54,6 +54,44 @@ Feature: Concatenation
       """
     Then I should see response status "200 OK"
     And I should see "hello world"
+
+  Scenario: Creating final upload from non-partial uploads
+    Given a file
+      """
+      Upload-Length: 5
+
+      hello
+      """
+    And a file
+      """
+      Upload-Length: 6
+
+       world
+      """
+    When I send a concatenation request for the created files
+    Then I should see response status "400 Bad Request"
+    And I should see "One or more uploads were not partial"
+
+  Scenario: Creating final upload from non-existing uploads
+    Given a file
+      """
+      Upload-Length: 5
+
+      hello
+      """
+    And a file
+      """
+      Upload-Length: 6
+
+       world
+      """
+    When I make a DELETE request to the created file
+      """
+      Tus-Resumable: 1.0.0
+      """
+    And I send a concatenation request for the created files
+    Then I should see response status "404 Not Found"
+    And I should see "One or more partial uploads were not found"
 
   Scenario: Invalid Upload-Concat
     When I make a POST request to /files

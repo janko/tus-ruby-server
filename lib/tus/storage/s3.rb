@@ -249,9 +249,9 @@ module Tus
               results << copy_part(part)
             end
             results
-          rescue => error
+          rescue
             queue.clear
-            raise error
+            raise
           end
         end
       end

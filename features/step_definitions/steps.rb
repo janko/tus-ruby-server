@@ -51,7 +51,7 @@ When(/^I send a concatenation request for the created files$/) do
     Tus-Resumable: 1.0.0
     Upload-Concat: final;#{@uids.map{|uid|"/files/#{uid}"}.join(" ")}
   EOS
-  @concatenated_uid = @response.location.split("/").last
+  @concatenated_uid = @response.location.split("/").last if @response.status == 201
 end
 
 When(/^I make an? (\w+) request to the created file$/) do |verb, data|

@@ -1,5 +1,7 @@
 ## HEAD
 
+* Verify that all partial uploads have `Upload-Concat: partial` before concatenation (@janko-m)
+
 * Include CORS and tus response headers in 404 responses (@janko-m)
 
 * Improve streaming on dynamic Rack inputs such as `TeeInput` from Unicorn/Passenger for S3 and Gridfs storage (@janko-m)

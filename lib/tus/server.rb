@@ -73,6 +73,8 @@ module Tus
           )
 
           if info.concatenation?
+            validate_partial_uploads!(info.partial_uploads)
+
             length = storage.concatenate(uid, info.partial_uploads, info.to_h)
             info["Upload-Length"] = length.to_s
             info["Upload-Offset"] = length.to_s
@@ -104,7 +106,7 @@ module Tus
         begin
           info = Tus::Info.new(storage.read_info(uid))
         rescue Tus::NotFound
-          not_found!
+          error!(404, "Upload Not Found")
         end
 
         r.head do
@@ -263,6 +265,30 @@ module Tus
       end
     end
 
+    def validate_partial_uploads!(part_uids)
+      queue = Queue.new
+      part_uids.each { |part_uid| queue << part_uid }
+
+      threads = 10.times.map do
+        Thread.new do
+          results = []
+          loop do
+            part_uid = queue.deq(true) rescue break
+            part_info = storage.read_info(part_uid)
+            results << part_info["Upload-Concat"]
+          end
+          results
+        end
+      end
+
+      upload_concat_values = threads.flat_map(&:value)
+      unless upload_concat_values.all? { |value| value == "partial" }
+        error!(400, "One or more uploads were not partial")
+      end
+    rescue Tus::NotFound
+      error!(404, "One or more partial uploads were not found")
+    end
+
     def validate_upload_checksum!(input)
       algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
 
@@ -324,14 +350,6 @@ module Tus
       response.status = 201
       response.headers["Location"] = location
       request.halt
-    end
-
-    def not_found!(message = "Upload Not Found")
-      error!(404, message)
-    end
-
-    def too_large!(message = "Chunk Too Large")
-      error!(413, message)
     end
 
     def error!(status, message)
