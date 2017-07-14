@@ -122,15 +122,17 @@ module Tus
             info["Upload-Defer-Length"] = nil
           end
 
+          input = get_input(info)
+
           validate_content_type!
-          validate_upload_offset!(info.offset)
-          validate_content_length!(info.offset, info.length) if input.size
-          validate_upload_checksum! if request.headers["Upload-Checksum"]
+          validate_upload_offset!(info)
+          validate_content_length!(input, info)
+          validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
           begin
             storage.patch_file(uid, input, info.to_h)
           rescue Tus::MaxSizeExceeded
-            too_large!
+            validate_content_length!(input, info)
           end
 
           info["Upload-Offset"] = (info.offset + input.bytes_read).to_s
@@ -147,7 +149,7 @@ module Tus
         end
 
         r.get do
-          validate_upload_finished!(info.length, info.offset)
+          validate_upload_finished!(info)
           range = handle_range_request!(info.length)
 
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
@@ -172,17 +174,14 @@ module Tus
       end
     end
 
-    def input
-      @input ||= (
-        content_length = Integer(request.content_length) if request.content_length
+    def get_input(info)
+      content_length = Integer(request.content_length) if request.content_length
 
-        offset   = Integer(request.headers["Upload-Offset"])
-        total    = Integer(request.headers["Upload-Length"]) if request.headers["Upload-Length"]
-        total  ||= max_size
-        limit    = total - offset if total
+      offset = info.offset
+      total  = info.length || max_size
+      limit  = total - offset if total
 
-        Tus::Input.new(request.body, content_length: content_length, limit: limit)
-      )
+      Tus::Input.new(request.body, content_length: content_length, limit: limit)
     end
 
     def validate_content_type!
@@ -210,29 +209,31 @@ module Tus
       end
     end
 
-    def validate_upload_offset!(current_offset)
+    def validate_upload_offset!(info)
       upload_offset = request.headers["Upload-Offset"]
 
       error!(400, "Missing Upload-Offset header") if upload_offset.to_s == ""
       error!(400, "Invalid Upload-Offset header") if upload_offset =~ /\D/
       error!(400, "Invalid Upload-Offset header") if upload_offset.to_i < 0
 
-      if upload_offset.to_i != current_offset
+      if upload_offset.to_i != info.offset
         error!(409, "Upload-Offset header doesn't match current offset")
       end
     end
 
-    def validate_content_length!(current_offset, total_length)
-      if total_length
-        error!(403, "Cannot modify completed upload") if current_offset == total_length
-        error!(413, "Size of this chunk surpasses Upload-Length") if input.size + current_offset > total_length
+    def validate_content_length!(input, info)
+      size = input.size || input.bytes_read
+
+      if info.length
+        error!(403, "Cannot modify completed upload") if info.offset == info.length
+        error!(413, "Size of this chunk surpasses Upload-Length") if info.offset + size > info.length
       elsif max_size
-        error!(413, "Size of this chunk surpasses Tus-Max-Size") if input.size + current_offset > max_size
+        error!(413, "Size of this chunk surpasses Tus-Max-Size") if info.offset + size > max_size
       end
     end
 
-    def validate_upload_finished!(length, current_offset)
-      error!(403, "Cannot download unfinished upload") unless length && current_offset && length == current_offset
+    def validate_upload_finished!(info)
+      error!(403, "Cannot download unfinished upload") unless info.length == info.offset
     end
 
     def validate_upload_metadata!
@@ -262,14 +263,14 @@ module Tus
       end
     end
 
-    def validate_upload_checksum!
+    def validate_upload_checksum!(input)
       algorithm, checksum = request.headers["Upload-Checksum"].split(" ")
 
       error!(400, "Invalid Upload-Checksum header") if algorithm.nil? || checksum.nil?
       error!(400, "Invalid Upload-Checksum header") unless SUPPORTED_CHECKSUM_ALGORITHMS.include?(algorithm)
 
       generated_checksum = Tus::Checksum.generate(algorithm, input)
-      error!(460, "Checksum from Upload-Checksum header doesn't match generated") if generated_checksum != checksum
+      error!(460, "Upload-Checksum value doesn't match generated checksum") if generated_checksum != checksum
     end
 
     # "Range" header handling logic copied from Rack::File

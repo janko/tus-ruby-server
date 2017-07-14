@@ -82,7 +82,7 @@ module Tus
 
         # We return a response object that responds to #each, #length and #close,
         # which the tus server can return directly as the Rack response.
-        Response.new(chunks: chunks, length: length, close: file.method(:close))
+        Response.new(chunks: chunks, length: length, close: -> { file.close })
       end
 
       def delete_file(uid, info = {})
