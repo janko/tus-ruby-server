@@ -128,16 +128,16 @@ module Tus
 
           validate_content_type!
           validate_upload_offset!(info)
-          validate_content_length!(input, info)
+          validate_content_length!(request.content_length.to_i, info) if request.content_length
           validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
           begin
-            storage.patch_file(uid, input, info.to_h)
+            bytes_uploaded = storage.patch_file(uid, input, info.to_h)
           rescue Tus::MaxSizeExceeded
-            validate_content_length!(input, info)
+            validate_content_length!(input.pos, info)
           end
 
-          info["Upload-Offset"] = (info.offset + input.bytes_read).to_s
+          info["Upload-Offset"] = (info.offset + bytes_uploaded).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           if info.offset == info.length # last chunk
@@ -177,13 +177,11 @@ module Tus
     end
 
     def get_input(info)
-      content_length = Integer(request.content_length) if request.content_length
-
       offset = info.offset
       total  = info.length || max_size
       limit  = total - offset if total
 
-      Tus::Input.new(request.body, content_length: content_length, limit: limit)
+      Tus::Input.new(request.body, limit: limit)
     end
 
     def validate_content_type!
@@ -223,9 +221,7 @@ module Tus
       end
     end
 
-    def validate_content_length!(input, info)
-      size = input.size || input.bytes_read
-
+    def validate_content_length!(size, info)
       if info.length
         error!(403, "Cannot modify completed upload") if info.offset == info.length
         error!(413, "Size of this chunk surpasses Upload-Length") if info.offset + size > info.length

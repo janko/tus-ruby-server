@@ -1,5 +1,11 @@
 ## HEAD
 
+* Modify S3 storage to cache chunks into memory instead of disk, which reduces disk IO (@janko-m)
+
+* [BREAKING] Require each storage to return the number of bytes uploaded in `#patch_file` (@janko-m)
+
+* Make S3 storage upload all received data from `tus-js-client` that doesn't have max chunk size configured (@janko-m)
+
 * Verify that all partial uploads have `Upload-Concat: partial` before concatenation (@janko-m)
 
 * Include CORS and tus response headers in 404 responses (@janko-m)

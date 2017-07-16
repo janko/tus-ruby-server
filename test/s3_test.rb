@@ -119,9 +119,11 @@ describe Tus::Storage::S3 do
         { etag: "etag" }
       })
 
-      @storage.patch_file("uid", StringIO.new("content"), @info)
+      assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
 
-      assert_equal [{"part_number" => 1, "etag" => "etag"}], @info["multipart_parts"]
+      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+
+      assert_equal expected_parts, @info["multipart_parts"]
     end
 
     it "uses the correct part number" do
@@ -129,19 +131,19 @@ describe Tus::Storage::S3 do
         { etag: "etag#{context.params[:part_number]}" }
       })
 
-      @storage.patch_file("uid", StringIO.new("content"), @info)
-      @storage.patch_file("uid", StringIO.new("content"), @info)
-      @storage.patch_file("uid", StringIO.new("content"), @info)
+      assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
+      assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
+      assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
 
-      parts = [{ "part_number" => 1, "etag" => "etag1" },
-               { "part_number" => 2, "etag" => "etag2" },
-               { "part_number" => 3, "etag" => "etag3" }]
+      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
+                        { "part_number" => 2, "etag" => "etag2" },
+                        { "part_number" => 3, "etag" => "etag3" }]
 
-      assert_equal parts, @info["multipart_parts"]
+      assert_equal expected_parts, @info["multipart_parts"]
     end
 
-    it "uploads in batches when input size is not known" do
-      input = RackInput.new([
+    it "uploads in batches of 5MB" do
+      input = StringIO.new([
         "a" * 5 * 1024 * 1024,
         "b" * 5 * 1024 * 1024,
       ].join)
@@ -157,16 +159,16 @@ describe Tus::Storage::S3 do
         { etag: "etag#{part_number}" }
       })
 
-      @storage.patch_file("uid", Tus::Input.new(input), @info)
+      assert_equal 10 * 1024 * 1024, @storage.patch_file("uid", input, @info)
 
-      parts = [{ "part_number" => 1, "etag" => "etag1" },
-               { "part_number" => 2, "etag" => "etag2" }]
+      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
+                        { "part_number" => 2, "etag" => "etag2" }]
 
-      assert_equal parts, @info["multipart_parts"]
+      assert_equal expected_parts, @info["multipart_parts"]
     end
 
     it "merges last chunk into previous if it's smaller than minimum allowed" do
-      input = RackInput.new([
+      input = StringIO.new([
         "a" * 5 * 1024 * 1024,
         "b" * 5 * 1024 * 1024,
         "c",
@@ -183,12 +185,59 @@ describe Tus::Storage::S3 do
         { etag: "etag#{part_number}" }
       })
 
-      @storage.patch_file("uid", Tus::Input.new(input), @info)
+      assert_equal 10 * 1024 * 1024 + 1, @storage.patch_file("uid", input, @info)
 
-      parts = [{ "part_number" => 1, "etag" => "etag1" },
-               { "part_number" => 2, "etag" => "etag2" }]
+      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
+                        { "part_number" => 2, "etag" => "etag2" }]
 
-      assert_equal parts, @info["multipart_parts"]
+      assert_equal expected_parts, @info["multipart_parts"]
+    end
+
+    it "doesn't accept chunk smaller than 5MB if it's not the last chunk" do
+      input = StringIO.new("a" * 4 * 1024 * 1024)
+
+      @info.merge!(
+        "Upload-Offset" => 0.to_s,
+        "Upload-Length" => (10 * 1024 * 1024).to_s,
+      )
+
+      @storage.client.stub_responses(:upload_part, StandardError)
+
+      assert_equal 0, @storage.patch_file("uid", input, @info)
+
+      assert_equal [], @info["multipart_parts"]
+    end
+
+    it "accepts chunk smaller than 5MB if it's the last chunk" do
+      input = StringIO.new("a" * 4 * 1024 * 1024)
+
+      @info.merge!(
+        "Upload-Offset" => (6 * 1024 * 1024).to_s,
+        "Upload-Length" => (10 * 1024 * 1024).to_s,
+      )
+
+      @storage.client.stub_responses(:upload_part, { etag: "etag" })
+
+      assert_equal 4 * 1024 * 1024, @storage.patch_file("uid", input, @info)
+
+      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+
+      assert_equal expected_parts, @info["multipart_parts"]
+    end
+
+    it "works for non-rewindable inputs" do
+      read_pipe, write_pipe = IO.pipe
+
+      write_pipe.write "content"
+      write_pipe.close
+
+      @storage.client.stub_responses(:upload_part, { etag: "etag" })
+
+      assert_equal 7, @storage.patch_file("uid", read_pipe, @info)
+
+      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+
+      assert_equal expected_parts, @info["multipart_parts"]
     end
   end
 

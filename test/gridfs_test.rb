@@ -113,6 +113,12 @@ describe Tus::Storage::Gridfs do
       assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("foo").each.to_a
     end
 
+    it "returns number of bytes saved" do
+      @storage.create_file("foo")
+      assert_equal 5, @storage.patch_file("foo", StringIO.new("hello"))
+      assert_equal 6, @storage.patch_file("foo", StringIO.new(" world"))
+    end
+
     it "accepts Tus::Input" do
       @storage = gridfs(chunk_size: 3)
       @storage.create_file("foo")

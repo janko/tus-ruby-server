@@ -71,7 +71,7 @@ describe Tus::Input do
       assert_raises(Tus::MaxSizeExceeded) { @input.read(1) }
     end
 
-    it "recovers from closed sockets on chunked requests when using Unicorn" do
+    it "recovers from closed sockets when using Unicorn" do
       require "unicorn"
 
       rack_input = Object.new
@@ -82,9 +82,6 @@ describe Tus::Input do
       assert_nil        @input.read(1)
       assert_nil        @input.read(1, outbuf = "outbuf")
       assert_equal "",  outbuf
-
-      @input = Tus::Input.new(rack_input, content_length: 10)
-      assert_raises(Unicorn::ClientShutdown) { @input.read }
     end
   end
 
@@ -96,30 +93,10 @@ describe Tus::Input do
     end
 
     it "resets bytes read" do
-      @input.read
+      @input = Tus::Input.new(StringIO.new("0123456789"), limit: 5)
+      @input.read(3)
       @input.rewind
-      assert_equal 0, @input.bytes_read
-    end
-  end
-
-  describe "#size" do
-    it "returns content length" do
-      @input = Tus::Input.new(IO.pipe[0], content_length: 10)
-      assert_equal 10, @input.size
-
-      @input = Tus::Input.new(IO.pipe[0])
-      assert_nil @input.size
-    end
-
-    it "returns size of Tempfile or StringIO inputs" do
-      @input = Tus::Input.new(StringIO.new("input"))
-      assert_equal 5, @input.size
-
-      @input = Tus::Input.new(Tempfile.new)
-      assert_equal 0, @input.size
-
-      @input = Tus::Input.new(IO.pipe[0])
-      assert_nil @input.size
+      @input.read(3)
     end
   end
 
@@ -127,17 +104,6 @@ describe Tus::Input do
     it "doesn't close the underlying input" do
       @input.close
       refute @io.closed?
-    end
-  end
-
-  describe "#bytes_read" do
-    it "returns how many bytes were read" do
-      @input.read(2)
-      assert_equal 2, @input.bytes_read
-      @input.read(2, "")
-      assert_equal 4, @input.bytes_read
-      @input.read
-      assert_equal 5, @input.bytes_read
     end
   end
 end

@@ -110,6 +110,12 @@ describe Tus::Storage::Filesystem do
       assert_equal "hello world", response.each.to_a.join
     end
 
+    it "returns number of bytes copied" do
+      @storage.create_file("foo")
+      assert_equal 5, @storage.patch_file("foo", StringIO.new("hello"))
+      assert_equal 6, @storage.patch_file("foo", StringIO.new(" world"))
+    end
+
     it "works with Tus::Input" do
       @storage.create_file("foo")
       @storage.patch_file("foo", Tus::Input.new(StringIO.new("hello")))

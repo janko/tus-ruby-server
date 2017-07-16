@@ -68,8 +68,9 @@ module Tus
         grid_info      = files_collection.find(filename: uid).first
         current_length = grid_info[:length]
         chunk_size     = grid_info[:chunkSize]
+        bytes_saved    = 0
 
-        patch_last_chunk(input, grid_info) if current_length % chunk_size != 0
+        bytes_saved += patch_last_chunk(input, grid_info) if current_length % chunk_size != 0
 
         chunks_enumerator = Enumerator.new do |yielder|
           while (data = input.read(chunk_size))
@@ -94,12 +95,15 @@ module Tus
           # Update the total length and refresh the upload date on each update,
           # which are used in #get_file, #concatenate and #expire_files.
           files_collection.find(filename: uid).update_one(
-            "$inc" => { length: chunks.inject(0) { |sum, data| sum + data.bytesize } },
+            "$inc" => { length: chunks.map(&:bytesize).inject(0, :+) },
             "$set" => { uploadDate: Time.now.utc },
           )
+          bytes_saved += chunks.map(&:bytesize).inject(0, :+)
 
           chunks.each(&:clear) # deallocate strings
         end
+
+        bytes_saved
       end
 
       def read_info(uid)
@@ -201,6 +205,8 @@ module Tus
 
         files_collection.find(_id: grid_info[:_id])
           .update_one("$inc" => { length: patch.bytesize })
+
+        patch.bytesize
       end
 
       def validate_parts!(grid_infos, part_uids)

@@ -6,7 +6,7 @@ require "tus/errors"
 require "json"
 require "cgi"
 require "fiber"
-require "tempfile"
+require "stringio"
 
 Aws.eager_autoload!(services: ["S3"])
 
@@ -17,14 +17,13 @@ module Tus
 
       attr_reader :client, :bucket, :prefix, :upload_options
 
-      def initialize(bucket:, prefix: nil, upload_options: {}, batch_size: MIN_PART_SIZE, thread_count: 10, **client_options)
+      def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
         resource = Aws::S3::Resource.new(**client_options)
 
         @client         = resource.client
         @bucket         = resource.bucket(bucket) or fail(ArgumentError, "the :bucket option was nil")
         @prefix         = prefix
         @upload_options = upload_options
-        @batch_size     = batch_size
         @thread_count   = thread_count
       end
 
@@ -72,38 +71,44 @@ module Tus
       end
 
       def patch_file(uid, input, info = {})
-        upload_id   = info["multipart_id"]
-        part_offset = info["multipart_parts"].count
+        tus_info = Tus::Info.new(info)
 
-        if input.size
-          part = upload_part(input, uid, upload_id, part_offset + 1)
-          info["multipart_parts"] << part
-        else
-          jobs  = []
-          chunk = copy_to_tempfile(input, @batch_size)
+        upload_id      = info["multipart_id"]
+        part_offset    = info["multipart_parts"].count
+        bytes_uploaded = 0
 
-          until chunk.closed?
-            next_chunk = copy_to_tempfile(input, @batch_size)
+        jobs = []
+        chunk = StringIO.new(input.read(MIN_PART_SIZE).to_s)
 
-            if next_chunk.size < MIN_PART_SIZE
-              chunk.seek(0, :END)
-              copy_stream(next_chunk, chunk)
-              next_chunk.close!
-            end
+        loop do
+          next_chunk = StringIO.new(input.read(MIN_PART_SIZE).to_s)
 
-            jobs << [
-              upload_part_thread(chunk, uid, upload_id, part_offset += 1),
-              chunk
-            ]
-
-            chunk = next_chunk
+          # merge next chunk into previous if it's smaller than minimum chunk size
+          if next_chunk.size < MIN_PART_SIZE
+            chunk = StringIO.new(chunk.string + next_chunk.string)
+            next_chunk.close
+            next_chunk = nil
           end
 
-          jobs.each do |thread, body|
-            info["multipart_parts"] << thread.value
-            body.close!
+          # abort if chunk is smaller than 5MB and is not the last chunk
+          if chunk.size < MIN_PART_SIZE
+            break if (tus_info.length && tus_info.offset) &&
+                     chunk.size + tus_info.offset < tus_info.length
           end
+
+          thread = upload_part_thread(chunk, uid, upload_id, part_offset += 1)
+          jobs << [thread, chunk]
+
+          chunk = next_chunk or break
         end
+
+        jobs.each do |thread, body|
+          info["multipart_parts"] << thread.value
+          bytes_uploaded += body.size
+          body.close
+        end
+
+        bytes_uploaded
       end
 
       def finalize_file(uid, info = {})
@@ -174,9 +179,7 @@ module Tus
       private
 
       def upload_part_thread(body, key, upload_id, part_number)
-        Thread.new do
-          upload_part(body, key, upload_id, part_number)
-        end
+        Thread.new { upload_part(body, key, upload_id, part_number) }
       end
 
       def upload_part(body, key, upload_id, part_number)
@@ -186,17 +189,6 @@ module Tus
         response = multipart_part.upload(body: body)
 
         { "part_number" => part_number, "etag" => response.etag }
-      end
-
-      def copy_to_tempfile(io, bytes)
-        tempfile = Tempfile.new("tus-s3", binmode: true)
-        copy_stream(io, tempfile, bytes)
-        tempfile
-      end
-
-      def copy_stream(from_io, to_io, bytes = nil)
-        IO.copy_stream(from_io, to_io, bytes)
-        to_io.rewind
       end
 
       def delete(objects)
