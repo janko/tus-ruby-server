@@ -41,12 +41,12 @@ describe Tus::Storage::Filesystem do
 
     it "applies :permissions to the created file" do
       @storage.create_file("foo")
-      assert_equal 0644, permissions("data/foo.file")
+      assert_equal 0644, permissions("data/foo")
       assert_equal 0644, permissions("data/foo.info")
 
       @storage = Tus::Storage::Filesystem.new("data", permissions: 0600)
       @storage.create_file("foo")
-      assert_equal 0600, permissions("data/foo.file")
+      assert_equal 0600, permissions("data/foo")
       assert_equal 0600, permissions("data/foo.info")
     end
   end
@@ -83,7 +83,7 @@ describe Tus::Storage::Filesystem do
       @storage.create_file("b")
       @storage.patch_file("b", StringIO.new(" world"))
       @storage.concatenate("ab", ["a", "b"])
-      assert_equal 0644, permissions("data/ab.file")
+      assert_equal 0644, permissions("data/ab")
       assert_equal 0644, permissions("data/ab.info")
 
       @storage = Tus::Storage::Filesystem.new("data", permissions: 0600)
@@ -92,7 +92,7 @@ describe Tus::Storage::Filesystem do
       @storage.create_file("b")
       @storage.patch_file("b", StringIO.new(" world"))
       @storage.concatenate("ab", ["a", "b"])
-      assert_equal 0600, permissions("data/ab.file")
+      assert_equal 0600, permissions("data/ab")
       assert_equal 0600, permissions("data/ab.info")
     end
 
@@ -204,12 +204,12 @@ describe Tus::Storage::Filesystem do
       @storage.update_info("bar", {})
       @storage.create_file("baz")
 
-      File.utime(time,     time,     @storage.directory.join("foo.file"))
-      File.utime(time - 1, time - 1, @storage.directory.join("bar.file"))
-      File.utime(time - 2, time - 2, @storage.directory.join("baz.file"))
+      File.utime(time,     time,     @storage.directory.join("foo"))
+      File.utime(time - 1, time - 1, @storage.directory.join("bar"))
+      File.utime(time - 2, time - 2, @storage.directory.join("baz"))
 
       @storage.expire_files(time - 1)
-      assert_equal ["data/foo.file", "data/foo.info"], @storage.directory.children.map(&:to_s)
+      assert_equal ["data/foo", "data/foo.info"], @storage.directory.children.map(&:to_s)
     end
   end
 end

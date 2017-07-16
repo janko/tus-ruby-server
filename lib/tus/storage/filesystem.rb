@@ -106,7 +106,7 @@ module Tus
       end
 
       def file_path(uid)
-        directory.join("#{uid}.file")
+        directory.join("#{uid}")
       end
 
       def info_path(uid)
