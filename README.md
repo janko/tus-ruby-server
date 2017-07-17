@@ -198,14 +198,6 @@ can for example change the `:endpoint` to use S3's accelerate host:
 Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
 ```
 
-Note that `aws-sdk` automatically calculates MD5 checksums on upload, so if
-you're using a web server with non-rewindable Rack input, you'll need to
-disable that behaviour:
-
-```rb
-Tus::Storage::S3.new(compute_checksums: false)
-```
-
 ### Other storages
 
 If none of these storages suit you, you can write your own, you just need to
