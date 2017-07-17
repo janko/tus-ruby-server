@@ -279,8 +279,9 @@ The following checksum algorithms are supported for the `checksum` extension:
 
 Run tests with
 
-```
-$ bundle exec rake test
+```sh
+$ bundle exec rake test # unit tests
+$ bundle exec cucumber  # acceptance tests
 ```
 
 ## Inspiration
