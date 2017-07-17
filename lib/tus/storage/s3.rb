@@ -262,8 +262,6 @@ module Tus
         def initialize(chunks:, length:)
           @chunks = chunks
           @length = length
-
-          retrieve_chunk
         end
 
         def length
@@ -273,7 +271,9 @@ module Tus
         def each
           return enum_for(__method__) unless block_given?
 
-          yield retrieve_chunk while chunks_fiber.alive?
+          while (chunk = chunks_fiber.resume)
+            yield chunk
+          end
         end
 
         def close
@@ -282,18 +282,13 @@ module Tus
 
         private
 
-        def retrieve_chunk
-          chunk = @next_chunk
-          @next_chunk = chunks_fiber.resume
-          chunk
-        end
-
         def chunks_fiber
           @chunks_fiber ||= Fiber.new do
             @chunks.each do |chunk|
               action = Fiber.yield chunk
               break if action == :close
             end
+            nil
           end
         end
       end
