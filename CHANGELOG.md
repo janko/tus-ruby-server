@@ -1,4 +1,4 @@
-## HEAD
+## 1.0.0 (2017-07-17)
 
 * Add Goliath integration (@janko-m)
 
