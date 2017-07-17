@@ -19,8 +19,7 @@ gem "tus-server"
 
 Tus-ruby-server provides a `Tus::Server` Roda app, which you can run in your
 `config.ru`. That way you can run `Tus::Server` both as a standalone app or as
-part of your main app (though it's recommended to run it as a standalone app,
-as explained in the "Performance considerations" section of this README).
+part of your main app.
 
 ```rb
 # config.ru
@@ -33,6 +32,9 @@ end
 run YourApp
 ```
 
+While this is the most flexible option, it's not optimal in terms of
+performance; see the [Goliath](#goliath) section for an alternative approach.
+
 Now you can tell your tus client library (e.g. [tus-js-client]) to use this
 endpoint:
 
@@ -40,7 +42,7 @@ endpoint:
 // using tus-js-client
 new tus.Upload(file, {
   endpoint: "http://localhost:9292/files",
-  chunkSize: 5*1024*1024, // 5MB
+  chunkSize: 5*1024*1024, // required unless using Goliath
   // ...
 })
 ```
@@ -48,6 +50,42 @@ new tus.Upload(file, {
 After the upload is complete, you'll probably want to attach the uploaded file
 to a database record. [Shrine] is one file attachment library that integrates
 nicely with tus-ruby-server, see [shrine-tus-demo] for an example integration.
+
+### Goliath
+
+[Goliath] is the ideal web server to run tus-ruby-server on, because by
+utilizing [EventMachine] it's asnychronous both in reading the request body and
+writing to the response body, so it's not affected by slow clients. Goliath
+also allows tus-ruby-server to handle interrupted requests, by saving data that
+has been uploaded until the interruption. This means that with Goliath it's
+**not** mandatory for client to chunk the upload into multiple requests in
+order to achieve resumable uploads, which would be the case for most other web
+servers.
+
+Tus-ruby-server ships with Goliath integration, you just need to require it in
+a Ruby file and run that file, and that will automatically start up Goliath.
+
+```rb
+# Gemfile
+gem "tus-server", "~> 1.0"
+gem "goliath"
+gem "async-rack", ">= 0.5.1"
+```
+```rb
+# tus.rb
+require "tus/server/goliath"
+
+# any additional Tus::Server configuration you want to put in here
+```
+```sh
+$ ruby tus.rb --stdout # enable logging
+```
+
+Any options provided after the Ruby file will be passed in to the Goliath
+server, see [this wiki][goliath server options] for all available options that
+Goliath supports. As shown above, running tus-ruby-server on Goliath means you
+have to run it separately from your main app (unless your main app is also on
+Goliath).
 
 ## Storage
 
@@ -215,8 +253,8 @@ Tus::Server.opts[:storage].expire_files(expiration_date)
 ## Download
 
 In addition to implementing the tus protocol, tus-ruby-server also comes with a
-GET endpoint for downloading the uploaded file, which streams the file directly
-from the storage.
+GET endpoint for downloading the uploaded file, which streams the file from the
+storage into the response body.
 
 The endpoint will automatically use the following `Upload-Metadata` values if
 they're available:
@@ -244,65 +282,6 @@ The following checksum algorithms are supported for the `checksum` extension:
 * SHA512
 * MD5
 * CRC32
-
-## Performance considerations
-
-### Buffering
-
-When handling file uploads it's important not be be vulnerable to slow-write
-clients. That means you need to make sure that your web/application server
-buffers the request body locally before handing the request to the request
-worker.
-
-If the request body is not buffered and is read directly from the socket when
-it has already reached your Rack application, your application throughput will
-be severly impacted, because the workers will spend majority of their time
-waiting for request body to be read from the socket, and in that time they
-won't be able to serve new requests.
-
-Puma will automatically buffer the whole request body in a Tempfile, before
-fowarding the request to your Rack app. Unicorn and Passenger will not do that,
-so it's highly recommended to put a frontend server like Nginx in front of
-those web servers, and configure it to buffer the request body.
-
-### Chunking
-
-The tus protocol specifies
-
-> The Server SHOULD always attempt to store as much of the received data as possible.
-
-The tus-ruby-server Rack application supports saving partial data for if the
-PATCH request gets interrupted before all data has been sent, but I'm not aware
-of any Rack-compliant web server that will forward interrupted requests to the
-Rack app.
-
-This means that for resumable upload to be possible with tus-ruby-server in
-general, the file must be uploaded in multiple chunks; the client shouldn't
-rely that server will store any data if the PATCH request was interrupted.
-
-```js
-// using tus-js-client
-new tus.Upload(file, {
-  endpoint: "http://localhost:9292/files",
-  chunkSize: 5*1024*1024, // required option
-  // ...
-})
-```
-
-### Downloading
-
-Tus-ruby-server has a download endpoint which streams the uploaded file to the
-client. Unfortunately, with most classic web servers this endpoint will be
-vulnerable to slow-read clients, because the worker is only done once the whole
-response body has been received by the client. Web servers that are not
-vulnerable to slow-read clients include [Goliath]/[Thin] ([EventMachine]) and
-[Reel] ([Celluloid::IO]).
-
-So, depending on your requirements, you might want to avoid displaying the
-uploaded file in the browser (making the user download the file directly from
-the tus server), until it has been moved to a permanent storage. You might also
-want to consider copying finished uploads to permanent storage directly from
-the underlying tus storage, instead of downloading them through the app.
 
 ## Tests
 
@@ -337,8 +316,6 @@ The tus-ruby-server was inspired by [rubytus].
 [`Aws::S3::Client#initialize`]: http://docs.aws.amazon.com/sdkforruby/api/Aws/S3/Client.html#initialize-instance_method
 [`Aws::S3::Client#create_multipart_upload`]: http://docs.aws.amazon.com/sdkforruby/api/Aws/S3/Client.html#create_multipart_upload-instance_method
 [Range requests]: https://tools.ietf.org/html/rfc7233
-[EventMachine]: https://github.com/eventmachine/eventmachine
-[Reel]: https://github.com/celluloid/reel
 [Goliath]: https://github.com/postrank-labs/goliath
-[Thin]: https://github.com/macournoyer/thin
-[Celluloid::IO]: https://github.com/celluloid/celluloid-io
+[EventMachine]: https://github.com/eventmachine/eventmachine
+[goliath server options]: https://github.com/postrank-labs/goliath/wiki/Server

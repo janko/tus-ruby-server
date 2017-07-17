@@ -1,5 +1,7 @@
 ## HEAD
 
+* Add Goliath integration (@janko-m)
+
 * [BREAKING] Save data in `"#{uid}"` instead of `"#{uid}.file"` in `Tus::Storage::Filesystem` (@janko-m)
 
 * Modify S3 storage to cache chunks into memory instead of disk, which reduces disk IO (@janko-m)
