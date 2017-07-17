@@ -30,7 +30,16 @@ class Tus::Server::Goliath < Goliath::API
 
   # Called after all the data has been received from the client.
   def response(env)
-    finalize(env)
+    status, headers, body = finalize(env)
+
+    env[STREAM_START].call(status, headers)
+
+    operation = proc { body.each { |chunk| env.stream_send(chunk) } }
+    callback  = proc { env.stream_close }
+
+    EM.defer(operation, callback) # use an outside thread pool for streaming
+
+    nil
   end
 
   private
