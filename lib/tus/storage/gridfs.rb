@@ -1,3 +1,4 @@
+# frozen-string-literal: true
 require "mongo"
 
 require "tus/info"

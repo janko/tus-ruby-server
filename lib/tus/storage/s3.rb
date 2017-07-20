@@ -1,3 +1,4 @@
+# frozen-string-literal: true
 require "aws-sdk"
 
 require "tus/info"

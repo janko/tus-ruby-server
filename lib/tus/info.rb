@@ -1,3 +1,4 @@
+# frozen-string-literal: true
 require "base64"
 require "time"
 

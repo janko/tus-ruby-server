@@ -1,3 +1,5 @@
+# frozen-string-literal: true
+
 module Tus
   class Checksum
     CHUNK_SIZE = 16*1024
@@ -48,7 +50,7 @@ module Tus
       require "zlib"
       require "base64"
       crc = Zlib.crc32("")
-      while (data = io.read(CHUNK_SIZE, buffer ||= ""))
+      while (data = io.read(CHUNK_SIZE, buffer ||= String.new))
         crc = Zlib.crc32(data, crc)
       end
       Base64.strict_encode64(crc.to_s)
@@ -57,7 +59,7 @@ module Tus
     def digest(name, io)
       require "digest"
       digest = Digest.const_get(name).new
-      while (data = io.read(CHUNK_SIZE, buffer ||= ""))
+      while (data = io.read(CHUNK_SIZE, buffer ||= String.new))
         digest.update(data)
       end
       digest.base64digest

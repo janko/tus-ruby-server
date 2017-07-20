@@ -1,3 +1,7 @@
+## HEAD
+
+* Reduce string allocations in MRI 2.3+ with `frozen-string-literal: true` magic comments (@janko-m)
+
 ## 1.0.0 (2017-07-17)
 
 * Add Goliath integration (@janko-m)
