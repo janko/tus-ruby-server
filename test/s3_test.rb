@@ -239,6 +239,30 @@ describe Tus::Storage::S3 do
 
       assert_equal expected_parts, @info["multipart_parts"]
     end
+
+    it "recovers from networking errors" do
+      input = StringIO.new([
+        "a" * 5 * 1024 * 1024,
+        "b" * 5 * 1024 * 1024
+      ].join)
+
+      @storage.client.stub_responses(:upload_part, -> (context) {
+        part_number, body = context.params.values_at(:part_number, :body)
+
+        case part_number
+        when 1 then { etag: "etag" }
+        when 2 then Seahorse::Client::NetworkingError.new(Timeout::Error.new("timed out"))
+        end
+      })
+
+      capture_io do # silence warnings
+        assert_equal 5 * 1024 * 1024, @storage.patch_file("uid", input, @info)
+      end
+
+      expected_parts = [{ "part_number" => 1, "etag" => "etag" }]
+
+      assert_equal expected_parts, @info["multipart_parts"]
+    end
   end
 
   describe "#finalize_file" do

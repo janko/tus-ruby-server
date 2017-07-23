@@ -103,10 +103,15 @@ module Tus
           chunk = next_chunk or break
         end
 
-        jobs.each do |thread, body|
-          info["multipart_parts"] << thread.value
-          bytes_uploaded += body.size
-          body.close
+        begin
+          jobs.each do |thread, body|
+            info["multipart_parts"] << thread.value
+            bytes_uploaded += body.size
+            body.close
+          end
+        rescue Seahorse::Client::NetworkingError => exception
+          warn "ERROR: #{exception.inspect} occurred during upload"
+          # ignore networking errors and return what client has uploaded so far
         end
 
         bytes_uploaded
