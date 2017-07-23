@@ -42,7 +42,7 @@ endpoint:
 // using tus-js-client
 new tus.Upload(file, {
   endpoint: "http://localhost:9292/files",
-  chunkSize: 5*1024*1024, // required unless using Goliath
+  chunkSize: 5*1024*1024, // required unless using Goliath or Unicorn
   // ...
 })
 ```
@@ -53,39 +53,62 @@ nicely with tus-ruby-server, see [shrine-tus-demo] for an example integration.
 
 ### Goliath
 
-[Goliath] is the ideal web server to run tus-ruby-server on, because by
-utilizing [EventMachine] it's asnychronous both in reading the request body and
-writing to the response body, so it's not affected by slow clients. Goliath
-also allows tus-ruby-server to handle interrupted requests, by saving data that
-has been uploaded until the interruption. This means that with Goliath it's
-**not** mandatory for client to chunk the upload into multiple requests in
-order to achieve resumable uploads, which would be the case for most other web
-servers.
+Among all the existing Ruby web servers, [Goliath] is probably the ideal one to
+run tus-ruby-server on. It's built on top of [EventMachine], making it
+asynchronous both in reading the request body and writing to the response body.
+Goliath also allows tus-ruby-server to handle interrupted requests, by saving
+data that has been uploaded until the interruption. This means that with
+Goliath it's **not** mandatory for client to chunk the upload into multiple
+requests in order to achieve resumable upload (which would be the case for most
+other web servers).
 
-Tus-ruby-server ships with Goliath integration, you just need to require it in
-a Ruby file and run that file, and that will automatically start up Goliath.
+It's recommended that you use [goliath-rack_proxy] for running your tus server
+app:
 
 ```rb
 # Gemfile
 gem "tus-server", "~> 1.0"
-gem "goliath"
-gem "async-rack", ">= 0.5.1"
+gem "goliath-rack_proxy"
 ```
 ```rb
 # tus.rb
-require "tus/server/goliath"
+require "tus/server"
+require "goliath/rack_proxy"
 
 # any additional Tus::Server configuration you want to put in here
+
+class GoliathTusServer < Goliath::RackProxy
+  rack_app Tus::Server
+  rewindable_input false # set to true if you're using checksums
+end
 ```
 ```sh
 $ ruby tus.rb --stdout # enable logging
 ```
 
-Any options provided after the Ruby file will be passed in to the Goliath
-server, see [this wiki][goliath server options] for all available options that
-Goliath supports. As shown above, running tus-ruby-server on Goliath means you
-have to run it separately from your main app (unless your main app is also on
-Goliath).
+### Unicorn
+
+Like Goliath, Unicorn also support streaming uploads, and tus-ruby-server knows
+how to automatically recover from `Unicorn::ClientShutdown` exceptions during
+upload, storing data that it has received up until that point. Just note that
+in order to achieve streaming uploads, Nginx should be configured **not** to
+buffer incoming requests.
+
+But it's also fine to have Nginx buffer requests, just note that in this case
+Nginx won't forward incomplete upload requests to tus-ruby-server, so in order
+for resumable upload to be possible the client needs to send data in multiple
+upload requests (which can then be retried individually).
+
+### Other web servers
+
+It's perfectly feasible to run tus-ruby-server on web servers other than
+Goliath or Unicorn (even necessary if you want to run it inside another app).
+Just keep in mind that most other web servers don't support request streaming,
+which means that tus-ruby-server will be able to start processing upload
+requess only once the whole request body has been received. Additionally,
+incomplete upload requests won't be forwarded to tus-ruby-server, so in order
+for resumable upload to be possible the client needs to send data in multiple
+upload requests (which can then be retried individually).
 
 ## Storage
 
@@ -311,4 +334,4 @@ The tus-ruby-server was inspired by [rubytus].
 [Range requests]: https://tools.ietf.org/html/rfc7233
 [Goliath]: https://github.com/postrank-labs/goliath
 [EventMachine]: https://github.com/eventmachine/eventmachine
-[goliath server options]: https://github.com/postrank-labs/goliath/wiki/Server
+[goliath-rack_proxy]: https://github.com/janko-m/goliath-rack_proxy

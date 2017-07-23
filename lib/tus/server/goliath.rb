@@ -2,6 +2,8 @@
 require "tus/server"
 require "goliath"
 
+warn "Tus::Server::Goliath has been deprecated in favor of goliath-rack_proxy -- https://github.com/janko-m/goliath-rack_proxy"
+
 class Tus::Server::Goliath < Goliath::API
   # Called as soon as request headers are parsed.
   def on_headers(env, headers)
