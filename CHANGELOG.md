@@ -1,3 +1,7 @@
+## 1.1.1 (2017-07-23)
+
+* Restore backwards compatibility with MRI 2.1 and MRI 2.2 that was broken in previous release (@janko-m)
+
 ## 1.1.0 (2017-07-23)
 
 * Ignore retryable networking errors in `Tus::Storage::S3#patch_file` for resiliency (@janko-m)

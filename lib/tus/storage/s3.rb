@@ -220,7 +220,6 @@ module Tus
       def copy_parts(objects, multipart_upload)
         parts = compute_parts(objects, multipart_upload)
         queue = parts.inject(Queue.new) { |queue, part| queue << part }
-        queue.close
 
         threads = @thread_count.times.map { copy_part_thread(queue) }
 
@@ -243,7 +242,8 @@ module Tus
         Thread.new do
           begin
             results = []
-            while part = queue.pop
+            loop do
+              part = queue.deq(true) rescue break
               results << copy_part(part)
             end
             results
