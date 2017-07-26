@@ -86,6 +86,20 @@ end
 $ ruby tus.rb --stdout # enable logging
 ```
 
+This will run the tus server app on the root URL; if you want to run it on some
+path you can use `Rack::Builder`:
+
+```rb
+class GoliathTusServer < Goliath::RackProxy
+  rack_app Rack::Builder.new {
+    map "/files" do
+      run Tus::Server
+    end
+  }
+  rewindable_input false # set to true if you're using checksums
+end
+```
+
 ### Unicorn
 
 Like Goliath, Unicorn also support streaming uploads, and tus-ruby-server knows
