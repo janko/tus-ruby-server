@@ -10,6 +10,19 @@ Feature: Misc
       Tus-Version: 1.0.0
       """
 
+  Scenario: Trailing Slash
+    When I make an OPTIONS request to /files/
+      """
+      """
+    Then I should see response status "204 No Content"
+    And I should see response headers
+      """
+      Tus-Resumable: 1.0.0
+      Tus-Version: 1.0.0
+      Tus-Extension: creation,creation-defer-length,termination,expiration,concatenation,checksum
+      Tus-Checksum-Algorithm: sha1,sha256,sha384,sha512,md5,crc32
+      """
+
   Scenario: Not Allowed
     When I make a PUT request to /files
       """
