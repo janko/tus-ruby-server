@@ -92,7 +92,12 @@ Like Goliath, Unicorn also support streaming uploads, and tus-ruby-server knows
 how to automatically recover from `Unicorn::ClientShutdown` exceptions during
 upload, storing data that it has received up until that point. Just note that
 in order to achieve streaming uploads, Nginx should be configured **not** to
-buffer incoming requests.
+buffer incoming requests, and to disable worker timeout to enable long running
+upload requests:
+
+```rb
+timeout 60*60*24*30 # set worker timeout to 30 days
+```
 
 But it's also fine to have Nginx buffer requests, just note that in this case
 Nginx won't forward incomplete upload requests to tus-ruby-server, so in order
