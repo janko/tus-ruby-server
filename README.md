@@ -118,6 +118,18 @@ Nginx won't forward incomplete upload requests to tus-ruby-server, so in order
 for resumable upload to be possible the client needs to send data in multiple
 upload requests (which can then be retried individually).
 
+Unless you're using the "checksum" tus feature, you might want to consider
+disabling rewindability of request body, to prevent Unicorn from additionally
+caching received data onto the disk (since that's not necessary unless request
+body needs to be rewinded).
+
+```rb
+# config/unicorn.rb
+# ...
+
+rewindable_input false
+```
+
 ### Other web servers
 
 It's perfectly feasible to run tus-ruby-server on web servers other than
