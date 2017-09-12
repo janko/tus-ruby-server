@@ -1,5 +1,13 @@
 # frozen-string-literal: true
-require "aws-sdk"
+begin
+  require "aws-sdk-s3"
+  if Gem::Version.new(Aws::S3::GEM_VERSION) < Gem::Version.new("1.2.0")
+    raise "Tus::Storage::S3 requires aws-sdk-s3 version 1.2.0 or above"
+  end
+rescue LoadError
+  require "aws-sdk"
+  Aws.eager_autoload!(services: ["S3"])
+end
 
 require "tus/info"
 require "tus/errors"
@@ -8,8 +16,6 @@ require "json"
 require "cgi"
 require "fiber"
 require "stringio"
-
-Aws.eager_autoload!(services: ["S3"])
 
 module Tus
   module Storage
@@ -35,7 +41,7 @@ module Tus
         options[:content_type] = tus_info.metadata["content_type"]
 
         if filename = tus_info.metadata["filename"]
-          # Aws-sdk doesn't sign non-ASCII characters correctly, and browsers
+          # Aws-sdk-s3 doesn't sign non-ASCII characters correctly, and browsers
           # will automatically URI-decode filenames.
           filename = CGI.escape(filename).gsub("+", " ")
 

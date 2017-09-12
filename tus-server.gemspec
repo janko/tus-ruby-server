@@ -22,5 +22,5 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency "cucumber"
   gem.add_development_dependency "unicorn"
   gem.add_development_dependency "mongo"
-  gem.add_development_dependency "aws-sdk", "~> 2.0"
+  gem.add_development_dependency "aws-sdk-s3", "~> 1.2"
 end

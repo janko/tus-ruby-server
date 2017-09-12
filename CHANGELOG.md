@@ -1,3 +1,7 @@
+## HEAD
+
+* Add support for the new `aws-sdk-s3` gem (@janko-m)
+
 ## 1.1.1 (2017-07-23)
 
 * Restore backwards compatibility with MRI 2.1 and MRI 2.2 that was broken in previous release (@janko-m)

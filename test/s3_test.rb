@@ -72,7 +72,7 @@ describe Tus::Storage::S3 do
       assert_equal "inline; filename=\"file.txt\"", @storage.bucket.object("uid").get.content_disposition
     end
 
-    it "escapes non-ASCII characters which aws-sdk cannot sign well" do
+    it "escapes non-ASCII characters which aws-sdk-s3 cannot sign well" do
       @storage.client.stub_responses(:create_multipart_upload, -> (context) {
         @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
         { upload_id: "upload_id" }

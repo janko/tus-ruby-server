@@ -210,10 +210,10 @@ chunks, meaning the length of each partial upload needs to be a multiple of the
 
 Amazon S3 is probably one of the most popular services for storing files, and
 tus-ruby-server ships with `Tus::Storage::S3` which utilizes S3's multipart API
-to upload files, and depends on the [aws-sdk] gem.
+to upload files, and depends on the [aws-sdk-s3] gem.
 
 ```rb
-gem "aws-sdk", "~> 2.1"
+gem "aws-sdk-s3", "~> 1.2"
 ```
 
 ```rb
@@ -359,9 +359,9 @@ The tus-ruby-server was inspired by [rubytus].
 [Shrine]: https://github.com/janko-m/shrine
 [trailing headers]: https://tools.ietf.org/html/rfc7230#section-4.1.2
 [rubytus]: https://github.com/picocandy/rubytus
-[aws-sdk]: https://github.com/aws/aws-sdk-ruby
-[`Aws::S3::Client#initialize`]: http://docs.aws.amazon.com/sdkforruby/api/Aws/S3/Client.html#initialize-instance_method
-[`Aws::S3::Client#create_multipart_upload`]: http://docs.aws.amazon.com/sdkforruby/api/Aws/S3/Client.html#create_multipart_upload-instance_method
+[aws-sdk-s3]: https://github.com/aws/aws-sdk-ruby/tree/master/gems/aws-sdk-s3
+[`Aws::S3::Client#initialize`]: http://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Client.html#initialize-instance_method
+[`Aws::S3::Client#create_multipart_upload`]: http://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Client.html#create_multipart_upload-instance_method
 [Range requests]: https://tools.ietf.org/html/rfc7233
 [Goliath]: https://github.com/postrank-labs/goliath
 [EventMachine]: https://github.com/eventmachine/eventmachine
