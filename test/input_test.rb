@@ -2,6 +2,10 @@ require "test_helper"
 require "stringio"
 require "tempfile"
 
+class Unicorn
+  ClientShutdown = Class.new(StandardError)
+end
+
 describe Tus::Input do
   before do
     @io    = StringIO.new("input")
@@ -72,8 +76,6 @@ describe Tus::Input do
     end
 
     it "recovers from closed sockets when using Unicorn" do
-      require "unicorn"
-
       rack_input = Object.new
       rack_input.instance_eval { def read(*args) raise Unicorn::ClientShutdown end }
 
