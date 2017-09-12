@@ -1,6 +1,6 @@
 Gem::Specification.new do |gem|
   gem.name         = "tus-server"
-  gem.version      = "1.1.1"
+  gem.version      = "1.1.2"
 
   gem.required_ruby_version = ">= 2.1"
 
