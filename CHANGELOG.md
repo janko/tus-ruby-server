@@ -1,4 +1,4 @@
-HEAD
+## 1.1.3 (2017-09-17)
 
 * Return `Accept-Ranges: bytes` response header in download endpoint (@janko-m)
 
