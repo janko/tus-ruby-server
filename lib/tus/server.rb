@@ -161,6 +161,7 @@ module Tus
           response.headers["Content-Disposition"]  = opts[:disposition]
           response.headers["Content-Disposition"] += "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
           response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
+          response.headers
 
           response = storage.get_file(uid, info.to_h, range: range)
 
@@ -298,6 +299,9 @@ module Tus
 
     # "Range" header handling logic copied from Rack::File
     def handle_range_request!(length)
+      # we support ranged requests
+      response.headers["Accept-Ranges"] = "bytes"
+
       if Rack.release >= "2.0"
         ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], length)
       else
@@ -305,15 +309,14 @@ module Tus
       end
 
       if ranges.nil? || ranges.length > 1
-        # No ranges, or multiple ranges (which we don't support):
+        # no ranges, or multiple ranges (which we don't support)
         response.status = 200
         range = 0..length-1
       elsif ranges.empty?
-        # Unsatisfiable. Return error, and file size:
+        # unsatisfiable range
         response.headers["Content-Range"] = "bytes */#{length}"
         error!(416, "Byte range unsatisfiable")
       else
-        # Partial content:
         range = ranges[0]
         response.status = 206
         response.headers["Content-Range"] = "bytes #{range.begin}-#{range.end}/#{length}"

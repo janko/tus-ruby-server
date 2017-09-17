@@ -13,6 +13,7 @@ Feature: Download
     Then I should see response status "200 OK"
     And I should see response headers
       """
+      Accept-Ranges: bytes
       Content-Length: 11
       """
     And I should see "hello world"

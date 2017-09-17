@@ -1,4 +1,8 @@
-## HEAD
+HEAD
+
+* Return `Accept-Ranges: bytes` response header in download endpoint (@janko-m)
+
+## 1.1.2 (2017-09-12)
 
 * Add support for the new `aws-sdk-s3` gem (@janko-m)
 
