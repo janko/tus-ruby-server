@@ -1,3 +1,7 @@
+## HEAD
+
+* Deprecate `aws-sdk` 2.x in favour of the new `aws-sdk-s3` gem (@janko-m)
+
 ## 1.1.3 (2017-09-17)
 
 * Return `Accept-Ranges: bytes` response header in download endpoint (@janko-m)
