@@ -1,4 +1,4 @@
-## HEAD
+## 1.2.0 (2017-09-18)
 
 * Deprecate `aws-sdk` 2.x in favour of the new `aws-sdk-s3` gem (@janko-m)
 
