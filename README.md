@@ -68,7 +68,7 @@ app:
 ```rb
 # Gemfile
 gem "tus-server", "~> 1.0"
-gem "goliath-rack_proxy"
+gem "goliath-rack_proxy", "~> 1.0"
 ```
 ```rb
 # tus.rb
