@@ -292,8 +292,11 @@ knows how to expire old files, so you just have to set up a recurring task
 that will call `#expire_files`.
 
 ```rb
-expiration_date = Time.now.utc - Tus::Server.opts[:expiration_time]
-Tus::Server.opts[:storage].expire_files(expiration_date)
+expiration_time = Tus::Server.opts[:expiration_time]
+tus_storage     = Tus::Server.opts[:storage]
+expiration_date = Time.now.utc - expiration_time
+
+tus_storage.expire_files(expiration_time)
 ```
 
 ## Download
