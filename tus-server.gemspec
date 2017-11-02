@@ -11,7 +11,7 @@ Gem::Specification.new do |gem|
   gem.email        = ["janko.marohnic@gmail.com"]
   gem.license      = "MIT"
 
-  gem.files        = Dir["README.md", "LICENSE.txt", "lib/**/*.rb", "*.gemspec"]
+  gem.files        = Dir["README.md", "LICENSE.txt", "CHANGELOG.md", "lib/**/*.rb", "*.gemspec"]
   gem.require_path = "lib"
 
   gem.add_dependency "roda", "~> 2.19"
