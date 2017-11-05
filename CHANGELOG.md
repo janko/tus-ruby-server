@@ -1,3 +1,7 @@
+## 1.2.1 (2017-11-05)
+
+* Improve communication when handling `aws-sdk 2.x` fallback in `Tus::Storage::S3` (@janko-m)
+
 ## 1.2.0 (2017-09-18)
 
 * Deprecate `aws-sdk` 2.x in favour of the new `aws-sdk-s3` gem (@janko-m)
