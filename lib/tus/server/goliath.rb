@@ -1,4 +1,5 @@
 # frozen-string-literal: true
+
 require "tus/server"
 require "goliath"
 
