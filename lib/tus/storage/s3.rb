@@ -16,6 +16,7 @@ rescue LoadError => exception
 end
 
 require "tus/info"
+require "tus/response"
 require "tus/errors"
 
 require "json"
@@ -160,9 +161,7 @@ module Tus
         range  = "bytes=#{range.begin}-#{range.end}" if range
         chunks = object(uid).enum_for(:get, range: range)
 
-        # We return a response object that responds to #each, #length and #close,
-        # which the tus server can return directly as the Rack response.
-        Response.new(chunks: chunks, length: length)
+        Tus::Response.new(chunks: chunks, length: length)
       end
 
       def delete_file(uid, info = {})
@@ -274,41 +273,6 @@ module Tus
 
       def object(key)
         bucket.object([*prefix, key].join("/"))
-      end
-
-      class Response
-        def initialize(chunks:, length:)
-          @chunks = chunks
-          @length = length
-        end
-
-        def length
-          @length
-        end
-
-        def each
-          return enum_for(__method__) unless block_given?
-
-          while (chunk = chunks_fiber.resume)
-            yield chunk
-          end
-        end
-
-        def close
-          chunks_fiber.resume(:close) if chunks_fiber.alive?
-        end
-
-        private
-
-        def chunks_fiber
-          @chunks_fiber ||= Fiber.new do
-            @chunks.each do |chunk|
-              action = Fiber.yield chunk
-              break if action == :close
-            end
-            nil
-          end
-        end
       end
     end
   end

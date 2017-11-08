@@ -3,6 +3,7 @@
 require "mongo"
 
 require "tus/info"
+require "tus/response"
 require "tus/errors"
 
 require "digest"
@@ -167,9 +168,7 @@ module Tus
           end
         end
 
-        # We return a response object that responds to #each, #length and #close,
-        # which the tus server can return directly as the Rack response.
-        Response.new(chunks: chunks, length: length, close: ->{chunks_view.close_query})
+        Tus::Response.new(chunks: chunks, length: length, close: chunks_view.method(:close_query))
       end
 
       def delete_file(uid, info = {})
@@ -236,26 +235,6 @@ module Tus
 
       def chunks_collection
         bucket.chunks_collection
-      end
-
-      class Response
-        def initialize(chunks:, close:, length:)
-          @chunks = chunks
-          @close  = close
-          @length = length
-        end
-
-        def length
-          @length
-        end
-
-        def each(&block)
-          @chunks.each(&block)
-        end
-
-        def close
-          @close.call
-        end
       end
     end
   end

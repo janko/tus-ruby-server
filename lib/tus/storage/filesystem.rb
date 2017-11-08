@@ -1,5 +1,6 @@
 # frozen-string-literal: true
 
+require "tus/response"
 require "tus/errors"
 
 require "pathname"
@@ -82,9 +83,7 @@ module Tus
           end
         end
 
-        # We return a response object that responds to #each, #length and #close,
-        # which the tus server can return directly as the Rack response.
-        Response.new(chunks: chunks, length: length, close: -> { file.close })
+        Tus::Response.new(chunks: chunks, length: length, close: file.method(:close))
       end
 
       def delete_file(uid, info = {})
@@ -118,26 +117,6 @@ module Tus
       def create_directory!
         directory.mkpath
         directory.chmod(@directory_permissions)
-      end
-
-      class Response
-        def initialize(chunks:, close:, length:)
-          @chunks = chunks
-          @close  = close
-          @length = length
-        end
-
-        def length
-          @length
-        end
-
-        def each(&block)
-          @chunks.each(&block)
-        end
-
-        def close
-          @close.call
-        end
       end
     end
   end

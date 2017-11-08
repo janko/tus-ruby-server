@@ -1,3 +1,7 @@
+## HEAD
+
+* Add generic `Tus::Response` class that storages can use (@janko-m)
+
 ## 1.2.1 (2017-11-05)
 
 * Improve communication when handling `aws-sdk 2.x` fallback in `Tus::Storage::S3` (@janko-m)
