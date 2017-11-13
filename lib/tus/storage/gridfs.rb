@@ -216,8 +216,7 @@ module Tus
 
       # Creates a GridFS file.
       def create_grid_file(**options)
-        file_options = {metadata: {}, chunk_size: chunk_size}.merge(options)
-        grid_file = Mongo::Grid::File.new("", file_options)
+        grid_file = Mongo::Grid::File.new("", metadata: {}, chunk_size: chunk_size, **options)
 
         bucket.insert_one(grid_file)
 

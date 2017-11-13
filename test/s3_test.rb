@@ -10,9 +10,11 @@ describe Tus::Storage::S3 do
   end
 
   def s3(**options)
-    options = { stub_responses: true, bucket: "my-bucket" }.merge(options)
-
-    Tus::Storage::S3.new(options)
+    Tus::Storage::S3.new(
+      stub_responses: true,
+      bucket: "my-bucket",
+      **options
+    )
   end
 
   describe "#initialize" do
