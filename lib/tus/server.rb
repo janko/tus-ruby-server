@@ -93,7 +93,7 @@ module Tus
         end
       end
 
-      r.is ":uid" do |uid|
+      r.is String do |uid|
         # OPTIONS /{uid}
         r.options do
           response.headers.update(
