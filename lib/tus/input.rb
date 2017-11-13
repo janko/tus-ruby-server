@@ -1,5 +1,6 @@
 # frozen-string-literal: true
 
+require "tus/input/unicorn"
 require "tus/errors"
 
 module Tus
@@ -8,6 +9,8 @@ module Tus
   # Rack input than the specified limit, a Tus::MaxSizeExceeded exception is
   # raised.
   class Input
+    prepend Tus::Input::Unicorn
+
     def initialize(input, limit: nil)
       @input = input
       @limit = limit
@@ -21,10 +24,6 @@ module Tus
       raise MaxSizeExceeded if @limit && @pos > @limit
 
       data
-    rescue => exception
-      raise unless exception.class.name == "Unicorn::ClientShutdown"
-      outbuf = outbuf.to_s.clear
-      outbuf unless length
     end
 
     def pos
