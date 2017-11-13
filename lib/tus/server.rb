@@ -32,7 +32,6 @@ module Tus
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :not_allowed
-    plugin :streaming
 
     route do |r|
       if request.headers["X-HTTP-Method-Override"]
@@ -168,11 +167,9 @@ module Tus
           response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
           response.headers
 
-          response = storage.get_file(uid, info.to_h, range: range)
+          body = storage.get_file(uid, info.to_h, range: range)
 
-          stream(callback: ->{response.close}) do |out|
-            response.each { |chunk| out << chunk }
-          end
+          request.halt response.finish_with_body(body)
         end
 
         # DELETE /{uid}
