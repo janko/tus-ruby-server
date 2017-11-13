@@ -18,7 +18,7 @@ module Tus
     end
 
     def read(length = nil, outbuf = nil)
-      data = @input.read(length, outbuf)
+      data = @input.read(*length, *outbuf)
 
       @pos += data.bytesize if data
       raise MaxSizeExceeded if @limit && @pos > @limit
