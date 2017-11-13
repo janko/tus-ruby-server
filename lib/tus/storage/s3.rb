@@ -1,18 +1,8 @@
 # frozen-string-literal: true
 
-begin
-  require "aws-sdk-s3"
-  if Gem::Version.new(Aws::S3::GEM_VERSION) < Gem::Version.new("1.2.0")
-    raise "Tus::Storage::S3 requires aws-sdk-s3 version 1.2.0 or above"
-  end
-rescue LoadError => exception
-  begin
-    require "aws-sdk"
-    warn "Using aws-sdk 2.x is deprecated and support for it will be removed in tus-server 2.0, use the new aws-sdk-s3 gem instead."
-    Aws.eager_autoload!(services: ["S3"])
-  rescue LoadError
-    raise exception
-  end
+require "aws-sdk-s3"
+if Gem::Version.new(Aws::S3::GEM_VERSION) < Gem::Version.new("1.2.0")
+  raise "Tus::Storage::S3 requires aws-sdk-s3 version 1.2.0 or above"
 end
 
 require "tus/info"
