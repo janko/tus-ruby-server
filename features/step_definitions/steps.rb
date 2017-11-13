@@ -36,20 +36,20 @@ When(/^I make an? (\w+) request to (\S+)$/) do |verb, path, data|
 end
 
 When(/^I append "(.+)" to the created file$/) do |input|
-  step "I make a PATCH request to the created file", <<~EOS.chomp
-    Tus-Resumable: 1.0.0
-    Upload-Offset: 0
-    Content-Type: application/offset+octet-stream
+  step "I make a PATCH request to the created file", <<-EOS.chomp
+Tus-Resumable: 1.0.0
+Upload-Offset: 0
+Content-Type: application/offset+octet-stream
 
-    #{input}
+#{input}
   EOS
   assert_equal 204, @response.status, "failed to append to the file"
 end
 
 When(/^I send a concatenation request for the created files$/) do
-  step "I make a POST request to /files", <<~EOS
-    Tus-Resumable: 1.0.0
-    Upload-Concat: final;#{@uids.map{|uid|"/files/#{uid}"}.join(" ")}
+  step "I make a POST request to /files", <<-EOS.chomp
+Tus-Resumable: 1.0.0
+Upload-Concat: final;#{@uids.map{|uid|"/files/#{uid}"}.join(" ")}
   EOS
   @concatenated_uid = @response.location.split("/").last if @response.status == 201
 end
