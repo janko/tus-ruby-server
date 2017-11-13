@@ -146,7 +146,6 @@ describe Tus::Storage::Gridfs do
       @storage.patch_file("foo", StringIO.new("hello world"))
       response = @storage.get_file("foo")
       assert_equal ["he", "ll", "o ", "wo", "rl", "d"], response.each.to_a
-      assert_equal 11, response.length
       response.close
     end
 

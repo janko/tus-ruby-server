@@ -99,7 +99,7 @@ module Tus
           end
         end
 
-        Tus::Response.new(chunks: chunks, length: length, close: file.method(:close))
+        Tus::Response.new(chunks: chunks, close: file.method(:close))
       end
 
       # Deletes data and info files for the specified upload.

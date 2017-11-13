@@ -189,11 +189,10 @@ module Tus
       def get_file(uid, info = {}, range: nil)
         tus_info = Tus::Info.new(info)
 
-        length = range ? range.size : tus_info.length
         range  = "bytes=#{range.begin}-#{range.end}" if range
         chunks = object(uid).enum_for(:get, range: range)
 
-        Tus::Response.new(chunks: chunks, length: length)
+        Tus::Response.new(chunks: chunks)
       end
 
       # Deletes resources for the specified upload. If multipart upload is

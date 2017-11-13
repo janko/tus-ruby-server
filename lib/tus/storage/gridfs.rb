@@ -152,8 +152,6 @@ module Tus
       def get_file(uid, info = {}, range: nil)
         grid_info = files_collection.find(filename: uid).first
 
-        length = range ? range.size : grid_info[:length]
-
         filter = { files_id: grid_info[:_id] }
 
         if range
@@ -196,7 +194,7 @@ module Tus
           end
         end
 
-        Tus::Response.new(chunks: chunks, length: length, close: chunks_view.method(:close_query))
+        Tus::Response.new(chunks: chunks, close: chunks_view.method(:close_query))
       end
 
       # Deletes the GridFS file and chunks for the specified upload.

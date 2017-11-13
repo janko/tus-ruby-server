@@ -405,23 +405,12 @@ describe Tus::Storage::S3 do
       assert_equal ["nte"], response.each.to_a
     end
 
-    it "calculates content length" do
-      @storage.client.stub_responses(:get_object, body: "content")
-
-      response = @storage.get_file("uid", { "Upload-Length" => 7 })
-      assert_equal 7, response.length
-
-      response = @storage.get_file("uid", { "Upload-Length" => 7 }, range: 2..4)
-      assert_equal 3, response.length
-    end
-
     it "works for empty files" do
       @storage.client.stub_responses(:get_object, body: "")
 
       response = @storage.get_file("uid", { "Upload-Length" => 0 })
 
       assert_equal [], response.each.to_a
-      assert_equal 0, response.length
     end
   end
 

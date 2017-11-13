@@ -153,7 +153,6 @@ describe Tus::Storage::Filesystem do
       @storage.patch_file("foo", StringIO.new("a" * 16*1024 + "b" * 16*1024))
       response = @storage.get_file("foo")
       assert_equal "a" * 16*1024 + "b" * 16*1024, response.each.to_a.join
-      assert_equal 32*1024, response.length
       response.close
     end
 
