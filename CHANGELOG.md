@@ -1,6 +1,20 @@
-## HEAD
+## 2.0.0 (2017-11-13)
+
+* Upgrade to Roda 3 (@janko-m)
+
+* Remove deprecated support for aws-sdk 2.x in `Tus::Storage::S3` (@janko-m)
+
+* Drop official support for MRI 2.1 (@janko-m)
 
 * Add generic `Tus::Response` class that storages can use (@janko-m)
+
+* Remove `Tus::Response#length` (@janko-m)
+
+* Remove deprecated Goliath integration (@janko-m)
+
+* Return `400 Bad Request` instead of `404 Not Found` when some partial uploads are missing in a concatenation request (@janko-m)
+
+* Use Rack directly instead of Roda's `streaming` plugin for downloding (@janko-m)
 
 ## 1.2.1 (2017-11-05)
 
