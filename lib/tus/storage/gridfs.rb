@@ -143,8 +143,6 @@ module Tus
 
       # Updates info of the specified upload.
       def update_info(uid, info)
-        grid_info = files_collection.find(filename: uid).first
-
         files_collection.update_one({filename: uid}, {"$set" => {metadata: info}})
       end
 
