@@ -1,3 +1,7 @@
+## 2.0.1 (2017-11-13)
+
+* Add back support for Roda 2.x (@janko-m)
+
 ## 2.0.0 (2017-11-13)
 
 * Upgrade to Roda 3 (@janko-m)
