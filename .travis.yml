@@ -13,12 +13,14 @@ rvm:
 before_install:
   - gem install bundler
 
+script:
+  - bundle exec rake test
+  - bundle exec cucumber
+
 matrix:
   allow_failures:
     - rvm: ruby-head
     - rvm: jruby-head
-
-script: bundle exec rake test
 
 cache: bundler
 
