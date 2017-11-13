@@ -3,6 +3,10 @@
 require "tus/errors"
 
 module Tus
+  # Wrapper around the Rack input, which adds the ability to limit the amount of
+  # bytes that will be read from the Rack input. If there are more bytes in the
+  # Rack input than the specified limit, a Tus::MaxSizeExceeded exception is
+  # raised.
   class Input
     def initialize(input, limit: nil)
       @input = input

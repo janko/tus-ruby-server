@@ -47,6 +47,7 @@ module Tus
       validate_tus_resumable! unless request.options? || request.get?
 
       r.is ['', true] do
+        # OPTIONS /
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
@@ -58,6 +59,7 @@ module Tus
           no_content!
         end
 
+        # POST /
         r.post do
           validate_upload_length! unless request.headers["Upload-Concat"].to_s.start_with?("final") || request.headers["Upload-Defer-Length"] == "1"
           validate_upload_metadata! if request.headers["Upload-Metadata"]
@@ -93,6 +95,7 @@ module Tus
       end
 
       r.is ":uid" do |uid|
+        # OPTIONS /{uid}
         r.options do
           response.headers.update(
             "Tus-Version"            => SUPPORTED_VERSIONS.join(","),
@@ -117,6 +120,7 @@ module Tus
           no_content!
         end
 
+        # PATCH /{uid}
         r.patch do
           if info.defer_length? && request.headers["Upload-Length"]
             validate_upload_length!
@@ -151,6 +155,7 @@ module Tus
           no_content!
         end
 
+        # GET /{uid}
         r.get do
           validate_upload_finished!(info)
           range = handle_range_request!(info.length)
@@ -170,6 +175,7 @@ module Tus
           end
         end
 
+        # DELETE /{uid}
         r.delete do
           storage.delete_file(uid, info.to_h)
 
@@ -178,6 +184,8 @@ module Tus
       end
     end
 
+    # Wraps the Rack input (request body) into a Tus::Input object, applying a
+    # size limit if one exists.
     def get_input(info)
       offset = info.offset
       total  = info.length || max_size
@@ -263,6 +271,7 @@ module Tus
       end
     end
 
+    # Validates that each partial upload exists and is marked as one.
     def validate_partial_uploads!(part_uids)
       queue = Queue.new
       part_uids.each { |part_uid| queue << part_uid }
@@ -297,7 +306,8 @@ module Tus
       error!(460, "Upload-Checksum value doesn't match generated checksum") if generated_checksum != checksum
     end
 
-    # "Range" header handling logic copied from Rack::File
+    # Handles partial responses requested in the "Range" header. Implementation
+    # is mostly copied from Rack::File.
     def handle_range_request!(length)
       # we support ranged requests
       response.headers["Accept-Ranges"] = "bytes"

@@ -31,6 +31,7 @@ module Tus
 
       attr_reader :client, :bucket, :prefix, :upload_options
 
+      # Initializes an aws-sdk-s3 client with the given credentials.
       def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
         resource = Aws::S3::Resource.new(**client_options)
 
@@ -41,6 +42,8 @@ module Tus
         @thread_count   = thread_count
       end
 
+      # Initiates multipart upload for the given upload, and stores its
+      # information inside the info hash.
       def create_file(uid, info = {})
         tus_info = Tus::Info.new(info)
 
@@ -64,6 +67,15 @@ module Tus
         multipart_upload
       end
 
+      # Concatenates multiple partial uploads into a single upload, and returns
+      # the size of the resulting upload. The partial uploads are deleted after
+      # concatenation.
+      #
+      # Internally it creates a new multipart upload, copies objects of the
+      # given partial uploads into multipart parts, and finalizes the multipart
+      # upload.
+      #
+      # The multipart upload is automatically aborted in case of an exception.
       def concatenate(uid, part_uids, info = {})
         multipart_upload = create_file(uid, info)
 
@@ -84,6 +96,18 @@ module Tus
         raise error
       end
 
+      # Appends data to the specified upload in a streaming fashion, and returns
+      # the number of bytes it managed to save.
+      #
+      # The data read from the input is first buffered in memory, and once 5MB
+      # (AWS S3's mininum allowed size for a multipart part) or more data has
+      # been retrieved, it starts being uploaded in a background thread as the
+      # next multipart part. This allows us to start reading the next chunk of
+      # input data and soon as possible, achieving streaming.
+      #
+      # If any network error is raised during the upload to S3, the upload of
+      # further input data stops and the number of bytes that manged to get
+      # uploaded is returned.
       def patch_file(uid, input, info = {})
         tus_info = Tus::Info.new(info)
 
@@ -130,6 +154,8 @@ module Tus
         bytes_uploaded
       end
 
+      # Completes the multipart upload using the part information saved in the
+      # info hash.
       def finalize_file(uid, info = {})
         upload_id = info["multipart_id"]
         parts = info["multipart_parts"].map do |part|
@@ -143,6 +169,8 @@ module Tus
         info.delete("multipart_parts")
       end
 
+      # Returns info of the specified upload. Raises Tus::NotFound if the upload
+      # wasn't found.
       def read_info(uid)
         response = object("#{uid}.info").get
         JSON.parse(response.body.string)
@@ -150,10 +178,14 @@ module Tus
         raise Tus::NotFound
       end
 
+      # Updates info of the specified upload.
       def update_info(uid, info)
         object("#{uid}.info").put(body: info.to_json)
       end
 
+      # Returns a Tus::Response object through which data of the specified
+      # upload can be retrieved in a streaming fashion. Accepts an optional
+      # range parameter for selecting a subset of bytes to retrieve.
       def get_file(uid, info = {}, range: nil)
         tus_info = Tus::Info.new(info)
 
@@ -164,6 +196,9 @@ module Tus
         Tus::Response.new(chunks: chunks, length: length)
       end
 
+      # Deletes resources for the specified upload. If multipart upload is
+      # still in progress, aborts the multipart upload, otherwise deletes the
+      # object.
       def delete_file(uid, info = {})
         if info["multipart_id"]
           multipart_upload = object(uid).multipart_upload(info["multipart_id"])
@@ -175,6 +210,9 @@ module Tus
         end
       end
 
+      # Deletes resources of uploads older than the specified date. For
+      # multipart uploads still in progress, it checks the upload date of the
+      # last multipart part.
       def expire_files(expiration_date)
         old_objects = bucket.objects.select do |object|
           object.last_modified <= expiration_date
@@ -195,10 +233,15 @@ module Tus
 
       private
 
+      # Spawns a thread which uploads given body as a new multipart part with
+      # the specified part number to the specified multipart upload.
       def upload_part_thread(body, key, upload_id, part_number)
         Thread.new { upload_part(body, key, upload_id, part_number) }
       end
 
+      # Uploads given body as a new multipart part with the specified part
+      # number to the specified multipart upload. Returns part number and ETag
+      # that will be required later for completing the multipart upload.
       def upload_part(body, key, upload_id, part_number)
         multipart_upload = object(key).multipart_upload(upload_id)
         multipart_part   = multipart_upload.part(part_number)
@@ -228,6 +271,9 @@ module Tus
         # multipart upload was successfully aborted or doesn't exist
       end
 
+      # Creates multipart parts for the specified multipart upload by copying
+      # given objects into them. It uses a queue and a fixed-size thread pool
+      # which consumes that queue.
       def copy_parts(objects, multipart_upload)
         parts = compute_parts(objects, multipart_upload)
         queue = parts.inject(Queue.new) { |queue, part| queue << part }
@@ -237,6 +283,7 @@ module Tus
         threads.flat_map(&:value).sort_by { |part| part["part_number"] }
       end
 
+      # Computes data required for copying objects into new multipart parts.
       def compute_parts(objects, multipart_upload)
         objects.map.with_index do |object, idx|
           {
@@ -249,6 +296,8 @@ module Tus
         end
       end
 
+      # Consumes the queue for new multipart part information and issues the
+      # copy requests.
       def copy_part_thread(queue)
         Thread.new do
           begin
@@ -265,12 +314,16 @@ module Tus
         end
       end
 
+      # Creates a new multipart part by copying the object specified in the
+      # given data. Returns part number and ETag that will be required later
+      # for completing the multipart upload.
       def copy_part(part)
         response = client.upload_part_copy(part)
 
         { "part_number" => part[:part_number], "etag" => response.copy_part_result.etag }
       end
 
+      # Retuns an Aws::S3::Object with the prefix applied.
       def object(key)
         bucket.object([*prefix, key].join("/"))
       end

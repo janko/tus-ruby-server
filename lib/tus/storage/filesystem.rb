@@ -12,6 +12,8 @@ module Tus
     class Filesystem
       attr_reader :directory
 
+      # Initializes the storage with a directory, in which it will save all
+      # files. Creates the directory if it doesn't exist.
       def initialize(directory, permissions: 0644, directory_permissions: 0755)
         @directory             = Pathname(directory)
         @permissions           = permissions
@@ -20,6 +22,7 @@ module Tus
         create_directory! unless @directory.exist?
       end
 
+      # Creates a file for storing uploaded data and a file for storing info.
       def create_file(uid, info = {})
         file_path(uid).binwrite("")
         file_path(uid).chmod(@permissions)
@@ -28,6 +31,11 @@ module Tus
         info_path(uid).chmod(@permissions)
       end
 
+      # Concatenates multiple partial uploads into a single upload, and returns
+      # the size of the resulting upload. The partial uploads are deleted after
+      # concatenation.
+      #
+      # Raises Tus::Error if any partial upload is missing.
       def concatenate(uid, part_uids, info = {})
         create_file(uid, info)
 
@@ -51,20 +59,28 @@ module Tus
         file_path(uid).size
       end
 
+      # Appends data to the specified upload in a streaming fashion, and
+      # returns the number of bytes it managed to save.
       def patch_file(uid, input, info = {})
         file_path(uid).open("ab") { |file| IO.copy_stream(input, file) }
       end
 
+      # Returns info of the specified upload. Raises Tus::NotFound if the upload
+      # wasn't found.
       def read_info(uid)
         raise Tus::NotFound if !file_path(uid).exist?
 
         JSON.parse(info_path(uid).binread)
       end
 
+      # Updates info of the specified upload.
       def update_info(uid, info)
         info_path(uid).binwrite(JSON.generate(info))
       end
 
+      # Returns a Tus::Response object through which data of the specified
+      # upload can be retrieved in a streaming fashion. Accepts an optional
+      # range parameter for selecting a subset of bytes to retrieve.
       def get_file(uid, info = {}, range: nil)
         file = file_path(uid).open("rb")
         length = range ? range.size : file.size
@@ -86,10 +102,12 @@ module Tus
         Tus::Response.new(chunks: chunks, length: length, close: file.method(:close))
       end
 
+      # Deletes data and info files for the specified upload.
       def delete_file(uid, info = {})
         delete([uid])
       end
 
+      # Deletes data and info files of uploads older than the specified date.
       def expire_files(expiration_date)
         uids = directory.children
           .select { |pathname| pathname.mtime <= expiration_date }

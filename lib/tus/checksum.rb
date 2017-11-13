@@ -1,6 +1,15 @@
 # frozen-string-literal: true
 
 module Tus
+  # Generates various checksums for given IO objects. The following algorithms
+  # are supported:
+  #
+  # * SHA1
+  # * SHA256
+  # * SHA384
+  # * SHA512
+  # * MD5
+  # * CRC32
   class Checksum
     CHUNK_SIZE = 16*1024
 

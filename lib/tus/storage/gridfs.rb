@@ -15,6 +15,7 @@ module Tus
 
       attr_reader :client, :prefix, :bucket, :chunk_size
 
+      # Initializes the GridFS storage and creates necessary indexes.
       def initialize(client:, prefix: "fs", chunk_size: 256*1024)
         @client     = client
         @prefix     = prefix
@@ -24,6 +25,7 @@ module Tus
         @bucket.send(:ensure_indexes!)
       end
 
+      # Creates a file for the specified upload.
       def create_file(uid, info = {})
         content_type = Tus::Info.new(info).metadata["content_type"]
 
@@ -33,6 +35,15 @@ module Tus
         )
       end
 
+      # Concatenates multiple partial uploads into a single upload, and returns
+      # the size of the resulting upload. The partial uploads are deleted after
+      # concatenation.
+      #
+      # It concatenates by updating partial upload's GridFS chunks to point to
+      # the new upload.
+      #
+      # Raises Tus::Error if GridFS chunks of partial uploads don't exist or
+      # aren't completely filled.
       def concatenate(uid, part_uids, info = {})
         grid_infos = files_collection.find(filename: {"$in" => part_uids}).to_a
         grid_infos.sort_by! { |grid_info| part_uids.index(grid_info[:filename]) }
@@ -67,14 +78,25 @@ module Tus
         length
       end
 
+      # Appends data to the specified upload in a streaming fashion, and
+      # returns the number of bytes it managed to save.
+      #
+      # It does so by reading the input data in batches of chunks, creating a
+      # new GridFS chunk for each chunk of data and appending it to the
+      # existing list.
       def patch_file(uid, input, info = {})
         grid_info      = files_collection.find(filename: uid).first
         current_length = grid_info[:length]
         chunk_size     = grid_info[:chunkSize]
         bytes_saved    = 0
 
+        # It's possible that the previous data append didn't fill in the last
+        # GridFS chunk completely, so we fill in that gap now before creating
+        # new GridFS chunks.
         bytes_saved += patch_last_chunk(input, grid_info) if current_length % chunk_size != 0
 
+        # Create an Enumerator which yields chunks of input data which have the
+        # size of the configured :chunkSize of the GridFS file.
         chunks_enumerator = Enumerator.new do |yielder|
           while (data = input.read(chunk_size))
             yielder << data
@@ -84,6 +106,9 @@ module Tus
         chunks_in_batch = (BATCH_SIZE.to_f / chunk_size).ceil
         chunks_offset   = chunks_collection.count(files_id: grid_info[:_id]) - 1
 
+        # Iterate in batches of data chunks and bulk-insert new GridFS chunks.
+        # This way we try to have a balance between bulking inserts and keeping
+        # memory usage low.
         chunks_enumerator.each_slice(chunks_in_batch) do |chunks|
           grid_chunks = chunks.map do |data|
             Mongo::Grid::File::Chunk.new(
@@ -109,18 +134,23 @@ module Tus
         bytes_saved
       end
 
+      # Returns info of the specified upload. Raises Tus::NotFound if the upload
+      # wasn't found.
       def read_info(uid)
         grid_info = files_collection.find(filename: uid).first or raise Tus::NotFound
-
         grid_info[:metadata]
       end
 
+      # Updates info of the specified upload.
       def update_info(uid, info)
         grid_info = files_collection.find(filename: uid).first
 
         files_collection.update_one({filename: uid}, {"$set" => {metadata: info}})
       end
 
+      # Returns a Tus::Response object through which data of the specified
+      # upload can be retrieved in a streaming fashion. Accepts an optional
+      # range parameter for selecting a subset of bytes we want to retrieve.
       def get_file(uid, info = {}, range: nil)
         grid_info = files_collection.find(filename: uid).first
 
@@ -171,11 +201,13 @@ module Tus
         Tus::Response.new(chunks: chunks, length: length, close: chunks_view.method(:close_query))
       end
 
+      # Deletes the GridFS file and chunks for the specified upload.
       def delete_file(uid, info = {})
         grid_info = files_collection.find(filename: uid).first
         bucket.delete(grid_info[:_id]) if grid_info
       end
 
+      # Deletes GridFS file and chunks of uploads older than the specified date.
       def expire_files(expiration_date)
         grid_infos = files_collection.find(uploadDate: {"$lte" => expiration_date}).to_a
         grid_info_ids = grid_infos.map { |info| info[:_id] }
@@ -186,6 +218,7 @@ module Tus
 
       private
 
+      # Creates a GridFS file.
       def create_grid_file(**options)
         file_options = {metadata: {}, chunk_size: chunk_size}.merge(options)
         grid_file = Mongo::Grid::File.new("", file_options)
@@ -195,6 +228,9 @@ module Tus
         grid_file
       end
 
+      # If the last GridFS chunk of the file is incomplete (meaning it's smaller
+      # than the configured :chunkSize of the GridFS file), fills the missing
+      # data by reading a chunk of the input data.
       def patch_last_chunk(input, grid_info)
         last_chunk = chunks_collection.find(files_id: grid_info[:_id]).sort(n: -1).limit(1).first
         data = last_chunk[:data].data
@@ -210,17 +246,21 @@ module Tus
         patch.bytesize
       end
 
+      # Validates that GridFS files of partial uploads are suitable for
+      # concatentation.
       def validate_parts!(grid_infos, part_uids)
         validate_parts_presence!(grid_infos, part_uids)
         validate_parts_full_chunks!(grid_infos)
       end
 
+      # Validates that each partial upload has a corresponding GridFS file.
       def validate_parts_presence!(grid_infos, part_uids)
         if grid_infos.count != part_uids.count
           raise Tus::Error, "some parts for concatenation are missing"
         end
       end
 
+      # Validates that GridFS chunks of each file are filled completely.
       def validate_parts_full_chunks!(grid_infos)
         grid_infos.each do |grid_info|
           if grid_info[:length] % grid_info[:chunkSize] != 0 && grid_info != grid_infos.last

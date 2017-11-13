@@ -4,6 +4,7 @@ require "base64"
 require "time"
 
 module Tus
+  # Holds request headers and other information about tus uploads.
   class Info
     HEADERS = %w[
       Upload-Length
