@@ -293,7 +293,7 @@ module Tus
         error!(400, "One or more uploads were not partial")
       end
     rescue Tus::NotFound
-      error!(404, "One or more partial uploads were not found")
+      error!(400, "One or more partial uploads were not found")
     end
 
     def validate_upload_checksum!(input)

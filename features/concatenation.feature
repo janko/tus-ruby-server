@@ -90,7 +90,7 @@ Feature: Concatenation
       Tus-Resumable: 1.0.0
       """
     And I send a concatenation request for the created files
-    Then I should see response status "404 Not Found"
+    Then I should see response status "400 Bad Request"
     And I should see "One or more partial uploads were not found"
 
   Scenario: Invalid Upload-Concat
