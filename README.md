@@ -308,8 +308,8 @@ storage into the response body.
 The endpoint will automatically use the following `Upload-Metadata` values if
 they're available:
 
-* `content_type` -- used in the `Content-Type` response header
-* `filename` -- used in the `Content-Disposition` response header
+* `type` -- used in the `Content-Type` response header
+* `name` -- used in the `Content-Disposition` response header
 
 The `Content-Disposition` header will be set to "inline" by default, but you
 can change it to "attachment" if you want the browser to always force download:

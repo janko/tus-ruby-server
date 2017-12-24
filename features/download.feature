@@ -42,6 +42,22 @@ Feature: Download
       Content-Disposition: attachment
       """
 
+  Scenario: Name
+    Given a file
+      """
+      Upload-Length: 11
+      Upload-Metadata: name bmF0dXJlLmpwZw==
+
+      hello world
+      """
+    When I make a GET request to the created file
+      """
+      """
+    And I should see response headers
+      """
+      Content-Disposition: inline; filename="nature.jpg"
+      """
+
   Scenario: Content-Type
     Given a file
       """
@@ -55,6 +71,22 @@ Feature: Download
     And I should see response headers
       """
       Content-Type: application/octet-stream
+      """
+
+  Scenario: Type
+    Given a file
+      """
+      Upload-Length: 11
+      Upload-Metadata: type aW1hZ2UvanBlZw==
+
+      hello world
+      """
+    When I make a GET request to the created file
+      """
+      """
+    And I should see response headers
+      """
+      Content-Type: image/jpeg
       """
 
   Scenario: Ranged request

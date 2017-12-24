@@ -162,9 +162,12 @@ module Tus
           response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
           metadata = info.metadata
+          name     = metadata["name"] || metadata["filename"]
+          type     = metadata["type"] || metadata["content_type"]
+
           response.headers["Content-Disposition"]  = opts[:disposition]
-          response.headers["Content-Disposition"] += "; filename=\"#{metadata["filename"]}\"" if metadata["filename"]
-          response.headers["Content-Type"] = metadata["content_type"] || "application/octet-stream"
+          response.headers["Content-Disposition"] += "; filename=\"#{name}\"" if name
+          response.headers["Content-Type"] = type || "application/octet-stream"
           response.headers
 
           body = storage.get_file(uid, info.to_h, range: range)

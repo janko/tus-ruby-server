@@ -1,3 +1,7 @@
+## HEAD
+
+* Handle `name` and `type` metadata for Uppy compatibility (@janko-m)
+
 ## 2.0.1 (2017-11-13)
 
 * Add back support for Roda 2.x (@janko-m)
