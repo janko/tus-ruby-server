@@ -1,4 +1,4 @@
-## HEAD
+## 2.0.2 (2017-12-24)
 
 * Handle `name` and `type` metadata for Uppy compatibility (@janko-m)
 
