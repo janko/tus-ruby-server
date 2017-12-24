@@ -49,6 +49,12 @@ describe Tus::Storage::Filesystem do
       assert_equal 0600, permissions("data/foo")
       assert_equal 0600, permissions("data/foo.info")
     end
+
+    it "doesn't overwrite info file if it already exists" do
+      @storage.update_info("foo", { "foo" => "bar" })
+      @storage.create_file("foo")
+      assert_equal Hash["foo" => "bar"], @storage.read_info("foo")
+    end
   end
 
   describe "#concatenate" do

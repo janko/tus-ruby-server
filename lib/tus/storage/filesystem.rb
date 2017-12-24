@@ -27,7 +27,7 @@ module Tus
         file_path(uid).binwrite("")
         file_path(uid).chmod(@permissions)
 
-        info_path(uid).binwrite("{}")
+        info_path(uid).binwrite("{}") unless info_path(uid).exist?
         info_path(uid).chmod(@permissions)
       end
 
