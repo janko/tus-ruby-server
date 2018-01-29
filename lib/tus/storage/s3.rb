@@ -11,7 +11,6 @@ require "tus/errors"
 
 require "json"
 require "cgi"
-require "fiber"
 require "stringio"
 
 module Tus
