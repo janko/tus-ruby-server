@@ -11,7 +11,6 @@ require "tus/errors"
 
 require "json"
 require "cgi"
-require "stringio"
 
 module Tus
   module Storage
@@ -105,39 +104,34 @@ module Tus
         bytes_uploaded = 0
 
         jobs = []
-        chunk = StringIO.new(input.read(MIN_PART_SIZE).to_s)
+        chunk = input.read(MIN_PART_SIZE)
 
-        loop do
-          next_chunk = StringIO.new(input.read(MIN_PART_SIZE).to_s)
+        while chunk
+          next_chunk = input.read(MIN_PART_SIZE)
 
           # merge next chunk into previous if it's smaller than minimum chunk size
-          if next_chunk.size < MIN_PART_SIZE
-            chunk = StringIO.new(chunk.string + next_chunk.string)
-            next_chunk.close
+          if next_chunk && next_chunk.bytesize < MIN_PART_SIZE
+            chunk << next_chunk
+            next_chunk.clear
             next_chunk = nil
           end
 
           # abort if chunk is smaller than 5MB and is not the last chunk
-          if chunk.size < MIN_PART_SIZE
+          if chunk.bytesize < MIN_PART_SIZE
             break if (tus_info.length && tus_info.offset) &&
-                     chunk.size + tus_info.offset < tus_info.length
+                     chunk.bytesize + tus_info.offset < tus_info.length
           end
 
-          thread = upload_part_thread(chunk, uid, upload_id, part_offset += 1)
-          jobs << [thread, chunk]
-
-          chunk = next_chunk or break
-        end
-
-        begin
-          jobs.each do |thread, body|
-            info["multipart_parts"] << thread.value
-            bytes_uploaded += body.size
-            body.close
+          begin
+            info["multipart_parts"] << upload_part(chunk, uid, upload_id, part_offset += 1)
+            bytes_uploaded += chunk.bytesize
+          rescue Seahorse::Client::NetworkingError => exception
+            warn "ERROR: #{exception.inspect} occurred during upload"
+            break # ignore networking errors and return what client has uploaded so far
           end
-        rescue Seahorse::Client::NetworkingError => exception
-          warn "ERROR: #{exception.inspect} occurred during upload"
-          # ignore networking errors and return what client has uploaded so far
+
+          chunk.clear
+          chunk = next_chunk
         end
 
         bytes_uploaded
@@ -220,12 +214,6 @@ module Tus
       end
 
       private
-
-      # Spawns a thread which uploads given body as a new multipart part with
-      # the specified part number to the specified multipart upload.
-      def upload_part_thread(body, key, upload_id, part_number)
-        Thread.new { upload_part(body, key, upload_id, part_number) }
-      end
 
       # Uploads given body as a new multipart part with the specified part
       # number to the specified multipart upload. Returns part number and ETag

@@ -116,7 +116,7 @@ describe Tus::Storage::S3 do
         assert_equal "upload_id", context.params[:upload_id]
         assert_equal "uid",       context.params[:key]
         assert_equal 1,           context.params[:part_number]
-        assert_equal "content",   context.params[:body].read
+        assert_equal "content",   context.params[:body]
 
         { etag: "etag" }
       })
@@ -154,8 +154,8 @@ describe Tus::Storage::S3 do
         part_number, body = context.params.values_at(:part_number, :body)
 
         case part_number
-        when 1 then assert_equal "a" * 5 * 1024 * 1024, body.read
-        when 2 then assert_equal "b" * 5 * 1024 * 1024, body.read
+        when 1 then assert_equal "a" * 5 * 1024 * 1024, body
+        when 2 then assert_equal "b" * 5 * 1024 * 1024, body
         end
 
         { etag: "etag#{part_number}" }
@@ -180,8 +180,8 @@ describe Tus::Storage::S3 do
         part_number, body = context.params.values_at(:part_number, :body)
 
         case part_number
-        when 1 then assert_equal "a" * 5 * 1024 * 1024,       body.read
-        when 2 then assert_equal "b" * 5 * 1024 * 1024 + "c", body.read
+        when 1 then assert_equal "a" * 5 * 1024 * 1024,       body
+        when 2 then assert_equal "b" * 5 * 1024 * 1024 + "c", body
         end
 
         { etag: "etag#{part_number}" }
