@@ -214,7 +214,7 @@ describe Tus::Storage::Filesystem do
       File.utime(time - 2, time - 2, @storage.directory.join("baz"))
 
       @storage.expire_files(time - 1)
-      assert_equal ["data/foo", "data/foo.info"], @storage.directory.children.map(&:to_s)
+      assert_equal ["data/foo", "data/foo.info"], @storage.directory.children.map(&:to_s).sort
     end
   end
 end
