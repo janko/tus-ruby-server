@@ -112,6 +112,7 @@ module Tus
           error!(404, "Upload Not Found")
         end
 
+        # HEAD /{uid}
         r.head do
           response.headers.update(info.headers)
           response.headers["Cache-Control"] = "no-store"
