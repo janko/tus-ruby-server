@@ -1,9 +1,8 @@
 # frozen-string-literal: true
 
+gem "aws-sdk-s3", "~> 1.2"
+
 require "aws-sdk-s3"
-if Gem::Version.new(Aws::S3::GEM_VERSION) < Gem::Version.new("1.2.0")
-  raise "Tus::Storage::S3 requires aws-sdk-s3 version 1.2.0 or above"
-end
 
 require "tus/info"
 require "tus/response"

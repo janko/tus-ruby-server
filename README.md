@@ -12,7 +12,8 @@ A Ruby server for the [tus resumable upload protocol]. It implements the core
 ## Installation
 
 ```rb
-gem "tus-server"
+# Gemfile
+gem "tus-server", "~> 2.0"
 ```
 
 ## Usage
@@ -178,7 +179,8 @@ MongoDB has a specification for storing and retrieving large files, called
 use, which uses the [Mongo] gem.
 
 ```rb
-gem "mongo", ">= 2.2.2", "< 3"
+# Gemfile
+gem "mongo", "~> 2.3"
 ```
 
 ```rb
@@ -213,6 +215,7 @@ tus-ruby-server ships with `Tus::Storage::S3` which utilizes S3's multipart API
 to upload files, and depends on the [aws-sdk-s3] gem.
 
 ```rb
+# Gemfile
 gem "aws-sdk-s3", "~> 1.2"
 ```
 

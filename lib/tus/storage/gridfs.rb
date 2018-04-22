@@ -1,5 +1,7 @@
 # frozen-string-literal: true
 
+gem "mongo", "~> 2.3"
+
 require "mongo"
 
 require "tus/info"
