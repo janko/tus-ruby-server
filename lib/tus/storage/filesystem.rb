@@ -99,7 +99,7 @@ module Tus
           end
         end
 
-        Tus::Response.new(chunks: chunks, close: file.method(:close))
+        Response.new(chunks: chunks, close: file.method(:close), path: file_path(uid).to_s)
       end
 
       # Deletes data and info files for the specified upload.
@@ -135,6 +135,18 @@ module Tus
       def create_directory!
         directory.mkpath
         directory.chmod(@directory_permissions)
+      end
+
+      class Response < Tus::Response
+        def initialize(path:, **options)
+          super(**options)
+          @path = path
+        end
+
+        # Rack::Sendfile middleware needs response body to respond to #to_path
+        def to_path
+          @path
+        end
       end
     end
   end

@@ -1,5 +1,7 @@
 ## HEAD
 
+* Allow application servers to serve files stored on disk via the `Rack::Sendfile` middleware (@janko-m)
+
 * Reject `Upload-Metadata` which contains key-value pairs separated by spaces (@janko-m)
 
 * Don't overwite info file if it already exists in `Tus::Storage::FileSystem` (@janko-m)

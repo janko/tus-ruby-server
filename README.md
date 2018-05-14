@@ -18,19 +18,26 @@ gem "tus-server", "~> 2.0"
 
 ## Usage
 
-Tus-ruby-server provides a `Tus::Server` Roda app, which you can run in your
-`config.ru`. That way you can run `Tus::Server` both as a standalone app or as
-part of your main app.
+The gem provides a `Tus::Server` Rack app, which you can mount inside your
+main application. If you're using Rails, you can mount it in `config/routes.rb`:
 
 ```rb
-# config.ru
+# config/routes.rb (Rails)
+Rails.application.routes.draw do
+  # ...
+  mount Tus::Server => "/files"
+end
+```
+
+Otherwise you can run it in `config.ru`:
+
+```rb
+# config.ru (Rack)
 require "tus/server"
 
 map "/files" do
   run Tus::Server
 end
-
-run YourApp
 ```
 
 While this is the most flexible option, it's not optimal in terms of
@@ -42,7 +49,7 @@ endpoint:
 ```js
 // using tus-js-client
 new tus.Upload(file, {
-  endpoint: "http://localhost:9292/files",
+  endpoint: "/files",
   chunkSize: 5*1024*1024, // required unless using Goliath or Unicorn
   // ...
 })
@@ -152,7 +159,7 @@ directory. You can configure a different directory:
 ```rb
 require "tus/storage/filesystem"
 
-Tus::Server.opts[:storage] = Tus::Storage::Filesystem.new("public/cache")
+Tus::Server.opts[:storage] = Tus::Storage::Filesystem.new("public/tus")
 ```
 
 If the configured directory doesn't exist, it will automatically be created.
@@ -171,6 +178,36 @@ store files on the filesystem as they won't persist.
 
 All these are reasons why you might store uploaded data on a different storage,
 and luckily tus-ruby-server ships with two more storages.
+
+#### Serving files
+
+If your retrieving uploaded files through the download endpoint, by default the
+files will be served through the Ruby application. However, that's very
+inefficient, as web workers are tied when serving download requests and cannot
+serve additional requests for that duration.
+
+Therefore, it's highly recommended to delegate serving uploaded files to your
+frontend server (Nginx, Apache etc). This can be achieved with the
+`Rack::Sendfile` middleware, see its [documentation][Rack::Sendfile] to learn
+more about how to use it with popular frontend servers.
+
+If you're using Rails, you can enable the `Rack::Sendfile` middleware by
+setting the `config.action_dispatch.x_sendfile_header` value accordingly:
+
+```rb
+config.action_dispatch.x_sendfile_header = "X-Sendfile" # Apache and lighttpd
+# or
+config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # Nginx
+```
+
+Otherwise you can add the `Rack::Sendfile` middleware to the stack in
+`config.ru`:
+
+```rb
+use Rack::Sendfile, "X-Sendfile" # Apache and lighttpd
+# or
+use Rack::Sendfile, "X-Accel-Redirect" # Nginx
+```
 
 ### MongoDB GridFS
 
