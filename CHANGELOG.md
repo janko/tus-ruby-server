@@ -1,5 +1,7 @@
 ## HEAD
 
+* Reject `Upload-Metadata` which contains key-value pairs separated by spaces (@janko-m)
+
 * Don't overwite info file if it already exists in `Tus::Storage::FileSystem` (@janko-m)
 
 ## 2.0.2 (2017-12-24)

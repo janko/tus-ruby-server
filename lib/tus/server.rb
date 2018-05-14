@@ -249,7 +249,7 @@ module Tus
       upload_metadata = request.headers["Upload-Metadata"]
 
       upload_metadata.split(",").each do |string|
-        key, value = string.split(" ")
+        key, value = string.split(" ", 2)
 
         error!(400, "Invalid Upload-Metadata header") if key.nil?
         error!(400, "Invalid Upload-Metadata header") if key.ord > 127
