@@ -18,7 +18,7 @@ Feature: Download
       """
     And I should see "hello world"
 
-  Scenario: Content-Disposition
+  Scenario: Content-Disposition (default)
     Given a file
       """
       Upload-Length: 11
@@ -42,7 +42,7 @@ Feature: Download
       Content-Disposition: attachment
       """
 
-  Scenario: Name
+  Scenario: Content-Disposition (from name)
     Given a file
       """
       Upload-Length: 11
@@ -58,7 +58,7 @@ Feature: Download
       Content-Disposition: inline; filename="nature.jpg"
       """
 
-  Scenario: Content-Type
+  Scenario: Content-Type (default)
     Given a file
       """
       Upload-Length: 11
@@ -73,7 +73,7 @@ Feature: Download
       Content-Type: application/octet-stream
       """
 
-  Scenario: Type
+  Scenario: Content-Type (from type)
     Given a file
       """
       Upload-Length: 11
@@ -107,6 +107,46 @@ Feature: Download
       Content-Length: 5
       """
     And I should see "world"
+
+  Scenario: Download URL (default)
+    Given a file
+      """
+      Upload-Length: 11
+      Upload-Metadata: name bmF0dXJlLmpwZw==,type aW1hZ2UvanBlZw==
+
+      hello world
+      """
+    And download URL is enabled
+    When I make a GET request to the created file
+      """
+      """
+    Then I should see response status "302 Found"
+    And I should see response headers
+      """
+      Location: https://example.org/file?content_type=image%2Fjpeg&content_disposition=inline%3B+filename%3D%22nature.jpg%22
+      """
+    And I should not see "Content-Type" response header
+    And I should not see "Content-Disposition" response header
+
+  Scenario: Download URL (defined)
+    Given a file
+      """
+      Upload-Length: 11
+      Upload-Metadata: name bmF0dXJlLmpwZw==,type aW1hZ2UvanBlZw==
+
+      hello world
+      """
+    And download URL is defined
+    When I make a GET request to the created file
+      """
+      """
+    Then I should see response status "302 Found"
+    And I should see response headers
+      """
+      Location: https://example.org/file?content_type=image%2Fjpeg&content_disposition=inline%3B+filename%3D%22nature.jpg%22
+      """
+    And I should not see "Content-Type" response header
+    And I should not see "Content-Disposition" response header
 
   Scenario: Unfinished upload
     Given I've created a file

@@ -1,5 +1,7 @@
 ## HEAD
 
+* Add `:download_url` server option for redirecting to a download URL (@janko-m)
+
 * Allow application servers to serve files stored on disk via the `Rack::Sendfile` middleware (@janko-m)
 
 * Reject `Upload-Metadata` which contains key-value pairs separated by spaces (@janko-m)

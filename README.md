@@ -40,9 +40,6 @@ map "/files" do
 end
 ```
 
-While this is the most flexible option, it's not optimal in terms of
-performance; see the [Goliath](#goliath) section for an alternative approach.
-
 Now you can tell your tus client library (e.g. [tus-js-client]) to use this
 endpoint:
 
@@ -50,28 +47,42 @@ endpoint:
 // using tus-js-client
 new tus.Upload(file, {
   endpoint: "/files",
-  chunkSize: 5*1024*1024, // required unless using Goliath or Unicorn
+  chunkSize: 5*1024*1024, // required unless using Goliath
   // ...
 })
 ```
 
-After the upload is complete, you'll probably want to attach the uploaded file
-to a database record. [Shrine] is one file attachment library that integrates
-nicely with tus-ruby-server, see [shrine-tus-demo] for an example integration.
+By default uploaded files will be stored in the `data/` directory. After the
+upload is complete, you'll probably want to attach the uploaded file to a
+database record. [Shrine] is one file attachment library that integrates nicely
+with tus-ruby-server, see [shrine-tus-demo] for an example integration.
 
 ### Goliath
 
-Among all the existing Ruby web servers, [Goliath] is probably the ideal one to
-run tus-ruby-server on. It's built on top of [EventMachine], making it
-asynchronous both in reading the request body and writing to the response body.
-Goliath also allows tus-ruby-server to handle interrupted requests, by saving
-data that has been uploaded until the interruption. This means that with
-Goliath it's **not** mandatory for client to chunk the upload into multiple
-requests in order to achieve resumable upload (which would be the case for most
-other web servers).
+Running the tus server alongside your main app using classic web servers like
+Puma or Unicorn is probably fine for most cases, however, it does come with a
+few gotchas. First, since these web servers don't accept partial requests
+(request where the request body hasn't been fully received), the tus client
+must be configured to split the upload into multiple requests. Second, since
+web workers are tied for the duration of the request, serving uploaded files
+through the tus server app could significantly impact request throughput, so
+you need to be careful to avoid that.
 
-It's recommended that you use [goliath-rack_proxy] for running your tus server
-app:
+There is an alternative. [Goliath] is an asychronous web server built on top of
+[EventMachine], which supports streaming requests and streaming responses.
+
+* Asynchronous streaming requests allows the tus server to begin saving
+  uploaded data while it's still being received. If the request is interrupted,
+  the tus server will attempt to save as much of the data that was received so
+  far. This means it's not necessary for the tus client to split the upload
+  into multiple smaller requests.
+
+* Asynchronous streaming responses allows the tus server to stream large files
+  with very small impact to the request throughput.
+
+Since Goliath is web server, to run tus server on it we'll have to run it as a
+standalone web app. It's recommended that you use [goliath-rack_proxy] for
+running your tus server app:
 
 ```rb
 # Gemfile
@@ -100,61 +111,29 @@ path you can use `Rack::Builder`:
 ```rb
 class GoliathTusServer < Goliath::RackProxy
   rack_app Rack::Builder.new {
-    map "/files" do
-      run Tus::Server
-    end
+    map("/files") { run Tus::Server }
   }
   rewindable_input false # set to true if you're using checksums
 end
 ```
 
-### Unicorn
+In this case you'll have to configure the tus client to point to the standalone
+Goliath app:
 
-Like Goliath, Unicorn also support streaming uploads, and tus-ruby-server knows
-how to automatically recover from `Unicorn::ClientShutdown` exceptions during
-upload, storing data that it has received up until that point. Just note that
-in order to achieve streaming uploads, Nginx should be configured **not** to
-buffer incoming requests, and to disable worker timeout to enable long running
-upload requests:
-
-```rb
-timeout 60*60*24*30 # set worker timeout to 30 days
+```js
+// using tus-js-client
+new tus.Upload(file, {
+  endpoint: "http://localhost:9000/files",
+  // ...
+})
 ```
-
-But it's also fine to have Nginx buffer requests, just note that in this case
-Nginx won't forward incomplete upload requests to tus-ruby-server, so in order
-for resumable upload to be possible the client needs to send data in multiple
-upload requests (which can then be retried individually).
-
-Unless you're using the "checksum" tus feature, you might want to consider
-disabling rewindability of request body, to prevent Unicorn from additionally
-caching received data onto the disk (since that's not necessary unless request
-body needs to be rewinded).
-
-```rb
-# config/unicorn.rb
-# ...
-
-rewindable_input false
-```
-
-### Other web servers
-
-It's perfectly feasible to run tus-ruby-server on web servers other than
-Goliath or Unicorn (even necessary if you want to run it inside another app).
-Just keep in mind that most other web servers don't support request streaming,
-which means that tus-ruby-server will be able to start processing upload
-requess only once the whole request body has been received. Additionally,
-incomplete upload requests won't be forwarded to tus-ruby-server, so in order
-for resumable upload to be possible the client needs to send data in multiple
-upload requests (which can then be retried individually).
 
 ## Storage
 
 ### Filesystem
 
-By default `Tus::Server` stores uploaded files to disk, in the `data/`
-directory. You can configure a different directory:
+By default `Tus::Server` stores uploaded files in the `data/` directory. You
+can configure a different directory:
 
 ```rb
 require "tus/storage/filesystem"
@@ -187,7 +166,7 @@ inefficient, as web workers are tied when serving download requests and cannot
 serve additional requests for that duration.
 
 Therefore, it's highly recommended to delegate serving uploaded files to your
-frontend server (Nginx, Apache etc). This can be achieved with the
+frontend server (Nginx, Apache). This can be achieved with the
 `Rack::Sendfile` middleware, see its [documentation][Rack::Sendfile] to learn
 more about how to use it with popular frontend servers.
 
@@ -207,6 +186,75 @@ Otherwise you can add the `Rack::Sendfile` middleware to the stack in
 use Rack::Sendfile, "X-Sendfile" # Apache and lighttpd
 # or
 use Rack::Sendfile, "X-Accel-Redirect" # Nginx
+```
+
+### Amazon S3
+
+You can switch to `Tus::Storage::S3` to uploads files to AWS S3 using the
+multipart API. For this you'll also need to add the [aws-sdk-s3] gem to your
+Gemfile.
+
+```rb
+# Gemfile
+gem "aws-sdk-s3", "~> 1.2"
+```
+
+```rb
+require "tus/storage/s3"
+
+# You can omit AWS credentials if you're authenticating in other ways
+Tus::Server.opts[:storage] = Tus::Storage::S3.new(
+  bucket:            "my-app", # required
+  access_key_id:     "abc",
+  secret_access_key: "xyz",
+  region:            "eu-west-1",
+)
+```
+
+One thing to note is that S3's multipart API requires each chunk except the
+last to be **5MB or larger**, so that is the minimum chunk size that you can
+specify on your tus client if you want to use the S3 storage.
+
+If you'll be retrieving uploaded files through the tus server app, it's
+recommended to set `Tus::Server.opts[:download_url]` to `true`. This will avoid
+tus server downloading and serving the file from S3, and instead have the
+download endpoint redirect to the direct S3 object URL.
+
+```rb
+Tus::Server.opts[:download_url] = true
+```
+
+You can customize how the S3 object URL is being generated by passing a block
+to `:download_url`, which will then be evaluated in the context of the
+`Tus::Server` instance (which allows accessing the `request` object). See
+[`Aws::S3::Object#get`] for the list of options that
+`Tus::Storage::S3#file_url` accepts.
+
+```rb
+Tus::Server.opts[:download_url] = -> (uid, info, **options) do
+  storage.file_url(uid, info, response_expires: 10, **options) # link expires after 10 seconds
+end
+```
+
+If you want to files to be stored in a certain subdirectory, you can specify
+a `:prefix` in the storage configuration.
+
+```rb
+Tus::Storage::S3.new(prefix: "tus", **options)
+```
+
+You can also specify additional options that will be fowarded to
+[`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
+
+```rb
+Tus::Storage::S3.new(upload_options: {content_disposition: "attachment"}, **options)
+```
+
+All other options will be forwarded to [`Aws::S3::Client#initialize`], so you
+can for example change the `:endpoint` to use S3's accelerate host:
+
+```rb
+Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
 ```
 
 ### MongoDB GridFS
@@ -245,53 +293,6 @@ partial uploads except the last one are required to fill in their Gridfs
 chunks, meaning the length of each partial upload needs to be a multiple of the
 `:chunk_size` number.
 
-### Amazon S3
-
-Amazon S3 is probably one of the most popular services for storing files, and
-tus-ruby-server ships with `Tus::Storage::S3` which utilizes S3's multipart API
-to upload files, and depends on the [aws-sdk-s3] gem.
-
-```rb
-# Gemfile
-gem "aws-sdk-s3", "~> 1.2"
-```
-
-```rb
-require "tus/storage/s3"
-
-Tus::Server.opts[:storage] = Tus::Storage::S3.new(
-  access_key_id:     "abc",
-  secret_access_key: "xyz",
-  region:            "eu-west-1",
-  bucket:            "my-app",
-)
-```
-
-One thing to note is that S3's multipart API requires each chunk except the
-last to be **5MB or larger**, so that is the minimum chunk size that you can
-specify on your tus client if you want to use the S3 storage.
-
-If you want to files to be stored in a certain subdirectory, you can specify
-a `:prefix` in the storage configuration.
-
-```rb
-Tus::Storage::S3.new(prefix: "tus", **options)
-```
-
-You can also specify additional options that will be fowarded to
-[`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
-
-```rb
-Tus::Storage::S3.new(upload_options: {content_disposition: "attachment"}, **options)
-```
-
-All other options will be forwarded to [`Aws::S3::Client#initialize`], so you
-can for example change the `:endpoint` to use S3's accelerate host:
-
-```rb
-Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
-```
-
 ### Other storages
 
 If none of these storages suit you, you can write your own, you just need to
@@ -304,6 +305,7 @@ def patch_file(uid, io, info = {})         ... end
 def update_info(uid, info)                 ... end
 def read_info(uid)                         ... end
 def get_file(uid, info = {}, range: nil)   ... end
+def file_url(uid, info = {}, **options)    ... end # optional
 def delete_file(uid, info = {})            ... end
 def expire_files(expiration_date)          ... end
 ```
@@ -342,14 +344,20 @@ tus_storage.expire_files(expiration_time)
 ## Download
 
 In addition to implementing the tus protocol, tus-ruby-server also comes with a
-GET endpoint for downloading the uploaded file, which streams the file from the
-storage into the response body.
+GET endpoint for downloading the uploaded file, which by default streams the
+file from the storage. It supports [Range requests], so you can use the tus
+file URL as `src` in `<video>` and `<audio>` HTML tags.
+
+It's highly recommended not to serve files through the app, but offload it to
+your frontend server if using disk storage, or if using S3 storage have the
+download endpoint redirect to the S3 object URL. See the documentation for the
+individual storage for instructions how to set this up.
 
 The endpoint will automatically use the following `Upload-Metadata` values if
 they're available:
 
-* `type` -- used in the `Content-Type` response header
-* `name` -- used in the `Content-Disposition` response header
+* `type` -- used to set `Content-Type` response header
+* `name` -- used to set `Content-Disposition` response header
 
 The `Content-Disposition` header will be set to "inline" by default, but you
 can change it to "attachment" if you want the browser to always force download:
@@ -357,9 +365,6 @@ can change it to "attachment" if you want the browser to always force download:
 ```rb
 Tus::Server.opts[:disposition] = "attachment"
 ```
-
-The download endpoint supports [Range requests], so you can use the tus
-file URL as `src` in `<video>` and `<audio>` HTML tags.
 
 ## Checksum
 
@@ -409,3 +414,5 @@ The tus-ruby-server was inspired by [rubytus].
 [Goliath]: https://github.com/postrank-labs/goliath
 [EventMachine]: https://github.com/eventmachine/eventmachine
 [goliath-rack_proxy]: https://github.com/janko-m/goliath-rack_proxy
+[Rack::Sendfile]: https://www.rubydoc.info/github/rack/rack/master/Rack/Sendfile
+[`Aws::S3::Object#get`]: https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Object.html#get-instance_method

@@ -26,6 +26,7 @@ module Tus
     opts[:max_size]        = nil
     opts[:expiration_time] = 7*24*60*60
     opts[:disposition]     = "inline"
+    opts[:download_url]    = nil
 
     plugin :all_verbs
     plugin :default_headers, {"Content-Type" => ""}
@@ -158,22 +159,33 @@ module Tus
         # GET /{uid}
         r.get do
           validate_upload_finished!(info)
-          range = handle_range_request!(info.length)
-
-          response.headers["Content-Length"] = (range.end - range.begin + 1).to_s
 
           metadata = info.metadata
           name     = metadata["name"] || metadata["filename"]
           type     = metadata["type"] || metadata["content_type"]
 
-          response.headers["Content-Disposition"]  = opts[:disposition]
-          response.headers["Content-Disposition"] += "; filename=\"#{name}\"" if name
-          response.headers["Content-Type"] = type || "application/octet-stream"
-          response.headers
+          content_disposition  = opts[:disposition]
+          content_disposition += "; filename=\"#{name}\"" if name
+          content_type = type || "application/octet-stream"
 
-          body = storage.get_file(uid, info.to_h, range: range)
+          if download_url
+            redirect_url = instance_exec(uid, info.to_h,
+              content_type:        content_type,
+              content_disposition: content_disposition,
+              &download_url)
 
-          request.halt response.finish_with_body(body)
+            r.redirect redirect_url
+          else
+            range = handle_range_request!(info.length)
+
+            response.headers["Content-Length"]      = range.size.to_s
+            response.headers["Content-Disposition"] = content_disposition
+            response.headers["Content-Type"]        = content_type
+
+            body = storage.get_file(uid, info.to_h, range: range)
+
+            r.halt response.finish_with_body(body)
+          end
         end
 
         # DELETE /{uid}
@@ -310,14 +322,14 @@ module Tus
     # Handles partial responses requested in the "Range" header. Implementation
     # is mostly copied from Rack::File.
     def handle_range_request!(length)
-      # we support ranged requests
-      response.headers["Accept-Ranges"] = "bytes"
-
       if Rack.release >= "2.0"
         ranges = Rack::Utils.get_byte_ranges(request.headers["Range"], length)
       else
         ranges = Rack::Utils.byte_ranges(request.env, length)
       end
+
+      # we support ranged requests
+      response.headers["Accept-Ranges"] = "bytes"
 
       if ranges.nil? || ranges.length > 1
         # no ranges, or multiple ranges (which we don't support)
@@ -368,6 +380,14 @@ module Tus
       response.write(message) unless request.head?
       response.headers["Content-Type"] = "text/plain"
       request.halt
+    end
+
+    def download_url
+      if opts[:download_url] == true
+        storage.method(:file_url)
+      else
+        opts[:download_url]
+      end
     end
 
     def storage

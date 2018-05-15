@@ -169,12 +169,18 @@ module Tus
       # upload can be retrieved in a streaming fashion. Accepts an optional
       # range parameter for selecting a subset of bytes to retrieve.
       def get_file(uid, info = {}, range: nil)
-        tus_info = Tus::Info.new(info)
-
         range  = "bytes=#{range.begin}-#{range.end}" if range
         chunks = object(uid).enum_for(:get, range: range)
 
         Tus::Response.new(chunks: chunks)
+      end
+
+      # Returns a signed expiring URL to the S3 object.
+      def file_url(uid, info = {}, content_type: nil, content_disposition: nil, **options)
+        options[:response_content_type]        ||= content_type
+        options[:response_content_disposition] ||= content_disposition
+
+        object(uid).presigned_url(:get, **options)
       end
 
       # Deletes resources for the specified upload. If multipart upload is

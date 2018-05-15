@@ -416,6 +416,26 @@ describe Tus::Storage::S3 do
     end
   end
 
+  describe "#file_url" do
+    it "returns signed expiring URL to the object" do
+      assert_match /X-Amz-Signature=/, @storage.file_url("uid")
+    end
+
+    it "accepts :content_type" do
+      assert_match /response-content-type=text%2Fplain/, @storage.file_url("uid", content_type: "text/plain")
+      assert_match /response-content-type=text%2Fother/, @storage.file_url("uid", content_type: "text/plain", response_content_type: "text/other")
+    end
+
+    it "accepts :content_disposition" do
+      assert_match /response-content-disposition=attachment/, @storage.file_url("uid", content_disposition: "attachment")
+      assert_match /response-content-disposition=inline/,     @storage.file_url("uid", content_disposition: "attachment", response_content_disposition: "inline")
+    end
+
+    it "accepts other AWS SDK options" do
+      assert_match /response-cache-control=max-age%3D3600/, @storage.file_url("uid", response_cache_control: "max-age=3600")
+    end
+  end
+
   describe "#delete_file" do
     before do
       @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")

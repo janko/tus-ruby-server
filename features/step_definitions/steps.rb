@@ -1,4 +1,5 @@
 require "time"
+require "cgi"
 
 Given(/^I've set max size to (\d+)$/) do |size|
   @server.opts[:max_size] = size.to_i
@@ -23,6 +24,21 @@ Given(/^I've created a file$/) do |data|
   step "I make a POST request to /files", data
   assert_equal 201, @response.status, "file failed to be created"
   (@uids ||= []) << @response.location.split("/").last
+end
+
+Given(/^download URL is enabled$/) do
+  @server.opts[:download_url] = true
+  @server.opts[:storage].instance_eval do
+    def file_url(uid, info, content_type:, content_disposition:)
+      "https://example.org/file?content_type=#{CGI.escape(content_type)}&content_disposition=#{CGI.escape(content_disposition)}"
+    end
+  end
+end
+
+Given(/^download URL is defined$/) do
+  @server.opts[:download_url] = lambda do |uid, info, content_type:, content_disposition:|
+    "https://example.org/file?content_type=#{CGI.escape(content_type)}&content_disposition=#{CGI.escape(content_disposition)}"
+  end
 end
 
 When(/^I create a file$/) do |data|
