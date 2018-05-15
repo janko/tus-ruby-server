@@ -336,6 +336,7 @@ describe Tus::Storage::S3 do
     end
 
     it "propagates errors and aborts multipart upload" do
+      Thread.report_on_exception = false if Thread.respond_to?(:report_on_exception=)
       @storage.client.stub_responses(:create_multipart_upload, "TimeoutError")
       assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
 
@@ -349,6 +350,7 @@ describe Tus::Storage::S3 do
       })
       assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
       assert_equal [], @storage.bucket.multipart_uploads.to_a
+      Thread.report_on_exception = true if Thread.respond_to?(:report_on_exception=)
     end
   end
 
