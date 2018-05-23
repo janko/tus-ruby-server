@@ -54,8 +54,10 @@ new tus.Upload(file, {
 
 By default uploaded files will be stored in the `data/` directory. After the
 upload is complete, you'll probably want to attach the uploaded file to a
-database record. [Shrine] is one file attachment library that integrates nicely
-with tus-ruby-server, see [shrine-tus-demo] for an example integration.
+database record. [Shrine] is currently the only file attachment library that
+integrates well with tus-ruby-server, see [this walkthrough][shrine resumable
+walkthrough] that adds resumable uploads from scratch, and for a complete
+example you can check out the [demo app][shrine-tus-demo].
 
 ### Goliath
 
@@ -416,3 +418,4 @@ The tus-ruby-server was inspired by [rubytus].
 [goliath-rack_proxy]: https://github.com/janko-m/goliath-rack_proxy
 [Rack::Sendfile]: https://www.rubydoc.info/github/rack/rack/master/Rack/Sendfile
 [`Aws::S3::Object#get`]: https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Object.html#get-instance_method
+[shrine resumable walkthrough]: https://github.com/shrinerb/shrine/wiki/Adding-Resumable-Uploads
