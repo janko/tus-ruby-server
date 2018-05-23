@@ -24,7 +24,6 @@ main application. If you're using Rails, you can mount it in `config/routes.rb`:
 ```rb
 # config/routes.rb (Rails)
 Rails.application.routes.draw do
-  # ...
   mount Tus::Server => "/files"
 end
 ```
@@ -176,9 +175,9 @@ If you're using Rails, you can enable the `Rack::Sendfile` middleware by
 setting the `config.action_dispatch.x_sendfile_header` value accordingly:
 
 ```rb
-config.action_dispatch.x_sendfile_header = "X-Sendfile" # Apache and lighttpd
+Rails.application.config.action_dispatch.x_sendfile_header = "X-Sendfile" # Apache and lighttpd
 # or
-config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # Nginx
+Rails.application.config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # Nginx
 ```
 
 Otherwise you can add the `Rack::Sendfile` middleware to the stack in
