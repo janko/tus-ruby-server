@@ -28,6 +28,8 @@ module Tus
     opts[:disposition]     = "inline"
     opts[:download_url]    = nil
 
+    opts[:behind_proxy]    = true
+    
     plugin :all_verbs
     plugin :default_headers, {"Content-Type" => ""}
     plugin :delete_empty_headers
@@ -393,7 +395,7 @@ module Tus
     def storage
       opts[:storage] || Tus::Storage::Filesystem.new("data")
     end
-
+    
     def max_size
       opts[:max_size]
     end
