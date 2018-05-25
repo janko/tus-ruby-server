@@ -27,7 +27,6 @@ module Tus
     opts[:expiration_time] = 7*24*60*60
     opts[:disposition]     = "inline"
     opts[:download_url]    = nil
-
     opts[:behind_proxy]    = true
     
     plugin :all_verbs
@@ -399,13 +398,17 @@ module Tus
     def max_size
       opts[:max_size]
     end
-
+    
     def expiration_time
       opts[:expiration_time]
     end
 
     def expiration_interval
       opts[:expiration_interval]
+    end
+    
+    def behind_proxy
+      opts[:behind_proxy]
     end
   end
 end
