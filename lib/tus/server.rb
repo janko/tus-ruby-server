@@ -23,10 +23,10 @@ module Tus
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
 
-    opts[:max_size]        = nil
-    opts[:expiration_time] = 7*24*60*60
-    opts[:disposition]     = "inline"
-    opts[:download_url]    = nil
+    opts[:max_size]          = nil
+    opts[:expiration_time]   = 7*24*60*60
+    opts[:disposition]       = "inline"
+    opts[:redirect_download] = nil
 
     plugin :all_verbs
     plugin :default_headers, {"Content-Type" => ""}
@@ -168,11 +168,11 @@ module Tus
           content_disposition += "; filename=\"#{name}\"" if name
           content_type = type || "application/octet-stream"
 
-          if download_url
+          if redirect_download
             redirect_url = instance_exec(uid, info.to_h,
               content_type:        content_type,
               content_disposition: content_disposition,
-              &download_url)
+              &redirect_download)
 
             r.redirect redirect_url
           else
@@ -382,12 +382,17 @@ module Tus
       request.halt
     end
 
-    def download_url
-      if opts[:download_url] == true
-        storage.method(:file_url)
-      else
-        opts[:download_url]
+    def redirect_download
+      value = opts[:redirect_download]
+
+      if opts[:download_url]
+        value ||= opts[:download_url]
+        warn "[TUS-RUBY-SERVER DEPRECATION] The :download_url option has been renamed to :redirect_download."
       end
+
+      value = storage.method(:file_url) if value == true
+
+      value
     end
 
     def storage

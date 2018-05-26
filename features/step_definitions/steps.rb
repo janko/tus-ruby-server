@@ -27,7 +27,7 @@ Given(/^I've created a file$/) do |data|
 end
 
 Given(/^download URL is enabled$/) do
-  @server.opts[:download_url] = true
+  @server.opts[:redirect_download] = true
   @server.opts[:storage].instance_eval do
     def file_url(uid, info, content_type:, content_disposition:)
       "https://example.org/file?content_type=#{CGI.escape(content_type)}&content_disposition=#{CGI.escape(content_disposition)}"
@@ -36,7 +36,7 @@ Given(/^download URL is enabled$/) do
 end
 
 Given(/^download URL is defined$/) do
-  @server.opts[:download_url] = lambda do |uid, info, content_type:, content_disposition:|
+  @server.opts[:redirect_download] = lambda do |uid, info, content_type:, content_disposition:|
     "https://example.org/file?content_type=#{CGI.escape(content_type)}&content_disposition=#{CGI.escape(content_disposition)}"
   end
 end

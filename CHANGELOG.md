@@ -1,3 +1,7 @@
+## HEAD
+
+* Rename `:download_url` option to `:redirect_download` (@janko-m)
+
 ## 2.1.0 (2018-05-15)
 
 * Add `:download_url` server option for redirecting to a download URL (@janko-m)
