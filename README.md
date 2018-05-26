@@ -387,6 +387,8 @@ $ bundle exec rake test # unit tests
 $ bundle exec cucumber  # acceptance tests
 ```
 
+Set `MONGO=1` environment variable if you want to also run MongoDB tests.
+
 ## Inspiration
 
 The tus-ruby-server was inspired by [rubytus].
