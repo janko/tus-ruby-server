@@ -1,4 +1,4 @@
-## HEAD
+## 2.1.1 (2018-15-26)
 
 * Rename `:download_url` option to `:redirect_download` (@janko-m)
 
