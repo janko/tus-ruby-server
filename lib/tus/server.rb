@@ -10,6 +10,8 @@ require "tus/errors"
 require "securerandom"
 require "time"
 
+require "rack/rewindable_input"
+
 module Tus
   class Server < Roda
     SUPPORTED_VERSIONS = ["1.0.0"]
@@ -135,9 +137,13 @@ module Tus
           validate_content_type!
           validate_upload_offset!(info)
           validate_content_length!(request.content_length.to_i, info) if request.content_length
-          validate_upload_checksum!(input) if request.headers["Upload-Checksum"]
 
           begin
+            if request.headers["Upload-Checksum"]
+              input = Rack::RewindableInput.new(input) unless input.rewindable?
+              validate_upload_checksum!(input)
+            end
+
             bytes_uploaded = storage.patch_file(uid, input, info.to_h)
           rescue Tus::MaxSizeExceeded
             validate_content_length!(input.pos, info)

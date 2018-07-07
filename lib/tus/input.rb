@@ -35,6 +35,12 @@ module Tus
       @pos = 0
     end
 
+    def rewindable?
+      @input.is_a?(Tempfile) ||               # Puma, Thin
+      @input.is_a?(StringIO) ||               # WEBRick, Puma, Thin
+      @input.class.name.end_with?("TeeInput") # Unicorn, Passenger
+    end
+
     def close
       # Rack input shouldn't be closed, we just support the interface
     end

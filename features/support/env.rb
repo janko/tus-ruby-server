@@ -14,6 +14,14 @@ class MinitestWorld
   end
 
   def request(verb, path, headers: {}, **options)
+    if options[:input]
+      # Test with non-rewindable Rack input, as that requirement will hopefully
+      # be removed from Rack in the near future.
+      rack_input = StringIO.new(options[:input].force_encoding(Encoding::BINARY))
+      rack_input.instance_eval { def rewind; raise Errno::ESPIPE, "Illegal seek"; end }
+      options[:env] = { "rack.input" => rack_input }
+    end
+
     if headers["Transfer-Encoding"] == "chunked"
       chunked_request(verb, path, headers: headers, **options)
     else
