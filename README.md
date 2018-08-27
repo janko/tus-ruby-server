@@ -258,6 +258,55 @@ can for example change the `:endpoint` to use S3's accelerate host:
 Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
 ```
 
+### Google Cloud Storage, Microsoft Azure Blob Storage
+
+While tus-ruby-server doesn't currently ship with integrations for Google Cloud
+Storage or Microsoft Azure Blob Storage, you can still use these services via
+**[Minio]**.
+
+Minio is an open source distributed object storage server that implements the
+Amazon S3 API and provides gateways for [GCP][minio gcp] and [Azure][minio
+azure]. This means it's possible to use the existing S3 tus-ruby-server
+integration to point to the Minio server, which will then in turn forward those
+calls to GCP or Azure.
+
+Let's begin by installing Minio via Homebrew:
+
+```sh
+$ brew install minio/stable/minio
+```
+
+And starting the Minio server as a gateway to GCP or Azure:
+
+```sh
+# Google Cloud Storage
+$ export GOOGLE_APPLICATION_CREDENTIALS=/path/credentials.json
+$ export MINIO_ACCESS_KEY=minioaccesskey
+$ export MINIO_SECRET_KEY=miniosecretkey
+$ minio gateway gcs yourprojectid
+```
+```sh
+# Microsoft Azure Blob Storage
+$ export MINIO_ACCESS_KEY=azureaccountname
+$ export MINIO_SECRET_KEY=azureaccountkey
+$ minio gateway azure
+```
+
+Now follow the displayed link to open the Minio web UI and create a bucket in
+which you want your files to be stored. Once you've done that, you can
+initialize `Tus::Storage::S3` to point to your Minio server and bucket:
+
+```rb
+Tus::Storage::S3.new(
+  access_key_id:     "<MINIO_ACCESS_KEY>", # "AccessKey" value
+  secret_access_key: "<MINIO_SECRET_KEY>", # "SecretKey" value
+  endpoint:          "<MINIO_ENDPOINT>",   # "Endpoint"  value
+  bucket:            "<MINIO_BUCKET>",     # name of the bucket you created
+  region:            "us-east-1",
+  force_path_style:  true,
+)
+```
+
 ### MongoDB GridFS
 
 MongoDB has a specification for storing and retrieving large files, called
@@ -420,3 +469,6 @@ The tus-ruby-server was inspired by [rubytus].
 [Rack::Sendfile]: https://www.rubydoc.info/github/rack/rack/master/Rack/Sendfile
 [`Aws::S3::Object#get`]: https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Object.html#get-instance_method
 [shrine resumable walkthrough]: https://github.com/shrinerb/shrine/wiki/Adding-Resumable-Uploads
+[Minio]: https://minio.io
+[minio gcp]: https://minio.io/gcp.html
+[minio azure]: https://minio.io/azure.html
