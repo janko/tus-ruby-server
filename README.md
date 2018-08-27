@@ -440,7 +440,7 @@ Set `MONGO=1` environment variable if you want to also run MongoDB tests.
 
 ## Inspiration
 
-The tus-ruby-server was inspired by [rubytus].
+The tus-ruby-server was inspired by [rubytus] and [tusd].
 
 ## License
 
@@ -472,3 +472,4 @@ The tus-ruby-server was inspired by [rubytus].
 [Minio]: https://minio.io
 [minio gcp]: https://minio.io/gcp.html
 [minio azure]: https://minio.io/azure.html
+[tusd]: https://github.com/tus/tusd
