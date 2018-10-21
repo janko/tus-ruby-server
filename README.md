@@ -46,7 +46,7 @@ endpoint:
 // using tus-js-client
 new tus.Upload(file, {
   endpoint: "/files",
-  chunkSize: 5*1024*1024, // required unless using Goliath
+  chunkSize: 5*1024*1024, // required unless using Falcon
   // ...
 })
 ```
@@ -54,79 +54,73 @@ new tus.Upload(file, {
 By default uploaded files will be stored in the `data/` directory. After the
 upload is complete, you'll probably want to attach the uploaded file to a
 database record. [Shrine] is currently the only file attachment library that
-integrates well with tus-ruby-server, see [this walkthrough][shrine resumable
-walkthrough] that adds resumable uploads from scratch, and for a complete
-example you can check out the [demo app][shrine-tus-demo].
+provides an integration with tus-ruby-server, see [this walkthrough][shrine
+resumable walkthrough] that adds resumable uploads from scratch, and for a
+complete example you can check out the [demo app][shrine-tus-demo].
 
-### Goliath
+### Streaming web server
 
-Running the tus server alongside your main app using classic web servers like
+Running the tus server alongside your main app using popular web servers like
 Puma or Unicorn is probably fine for most cases, however, it does come with a
 few gotchas. First, since these web servers don't accept partial requests
 (request where the request body hasn't been fully received), the tus client
 must be configured to split the upload into multiple requests. Second, since
 web workers are tied for the duration of the request, serving uploaded files
-through the tus server app could significantly impact request throughput, so
-you need to be careful to avoid that.
+through the tus server app could significantly impact request throughput; this
+can be avoided by having your frontend server (Nginx) serve the files if using
+`Filesystem` storage, or if you're using a cloud service like S3 having
+download requests redirect to the service file URL.
 
-There is an alternative. [Goliath] is an asychronous web server built on top of
-[EventMachine], which supports streaming requests and streaming responses.
+That being said, there is a ruby web server that addresses these limitations
+– [Falcon]. Falcon is part of the [`async` ecosystem][async], and it utilizes
+non-blocking IO to process requests and responses in a streaming fashion
+without tying up your web workers. This has several benefits for
+`tus-ruby-server`:
 
-* Asynchronous streaming requests allows the tus server to begin saving
-  uploaded data while it's still being received. If the request is interrupted,
-  the tus server will attempt to save as much of the data that was received so
-  far. This means it's not necessary for the tus client to split the upload
-  into multiple smaller requests.
+* since tus server is called to handle the request as soon as the request
+  headers are received, data from the request body will be uploaded to the
+  configured storage as it's coming in from the client
 
-* Asynchronous streaming responses allows the tus server to stream large files
-  with very small impact to the request throughput.
+* your web workers don't get tied up waiting for the client data, because as
+  soon as the server needs to wait for more data from the client, Falcon's
+  reactor switches to processing another request
 
-Since Goliath is web server, to run tus server on it we'll have to run it as a
-standalone web app. It's recommended that you use [goliath-rack_proxy] for
-running your tus server app:
+* if the upload request that's in progress gets interrupted, tus server will be
+  able save data that has been received so far, so it's not necessary for the
+  tus client to split the upload into multiple chunks
+
+* when uploaded files are being downloaded from the tus server, the request
+  throughput won't be impacted by the speed in which the client retrieves the
+  response body, because Falcon's reactor will switch to another request if the
+  client buffer gets full
+
+Falcon provides a Rack adapter and is compatible with Rails, so you can use it
+even if you're mounting `tus-ruby-server` inside your main app, just add
+`falcon` to the Gemfile and run `falcon serve`.
 
 ```rb
 # Gemfile
-gem "tus-server", "~> 2.0"
-gem "goliath-rack_proxy", "~> 1.0"
+gem "falcon"
 ```
+```sh
+$ falcon serve # reads from config.ru and starts the server
+```
+
+Alternatively, you can run `tus-ruby-server` as a standalone app, by creating
+a separate "rackup" file just for it and pointing Falcon to that rackup file:
+
 ```rb
-# tus.rb
+# tus.ru
 require "tus/server"
-require "goliath/rack_proxy"
 
-# any additional Tus::Server configuration you want to put in here
+# ... configure tus-ruby-server ...
 
-class GoliathTusServer < Goliath::RackProxy
-  rack_app Tus::Server
-  rewindable_input false # set to true if you're using checksums
+map "/files" do
+  run Tus::Server
 end
 ```
 ```sh
-$ ruby tus.rb --stdout # enable logging
-```
-
-This will run the tus server app on the root URL; if you want to run it on some
-path you can use `Rack::Builder`:
-
-```rb
-class GoliathTusServer < Goliath::RackProxy
-  rack_app Rack::Builder.new {
-    map("/files") { run Tus::Server }
-  }
-  rewindable_input false # set to true if you're using checksums
-end
-```
-
-In this case you'll have to configure the tus client to point to the standalone
-Goliath app:
-
-```js
-// using tus-js-client
-new tus.Upload(file, {
-  endpoint: "http://localhost:9000/files",
-  // ...
-})
+$ falcon serve --config tus.ru
 ```
 
 ## Storage
@@ -463,9 +457,6 @@ The tus-ruby-server was inspired by [rubytus] and [tusd].
 [`Aws::S3::Client#initialize`]: http://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Client.html#initialize-instance_method
 [`Aws::S3::Client#create_multipart_upload`]: http://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Client.html#create_multipart_upload-instance_method
 [Range requests]: https://tools.ietf.org/html/rfc7233
-[Goliath]: https://github.com/postrank-labs/goliath
-[EventMachine]: https://github.com/eventmachine/eventmachine
-[goliath-rack_proxy]: https://github.com/janko-m/goliath-rack_proxy
 [Rack::Sendfile]: https://www.rubydoc.info/github/rack/rack/master/Rack/Sendfile
 [`Aws::S3::Object#get`]: https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Object.html#get-instance_method
 [shrine resumable walkthrough]: https://github.com/shrinerb/shrine/wiki/Adding-Resumable-Uploads
@@ -473,3 +464,5 @@ The tus-ruby-server was inspired by [rubytus] and [tusd].
 [minio gcp]: https://minio.io/gcp.html
 [minio azure]: https://minio.io/azure.html
 [tusd]: https://github.com/tus/tusd
+[Falcon]: https://github.com/socketry/falcon
+[async]: https://github.com/socketry
