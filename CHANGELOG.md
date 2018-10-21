@@ -1,8 +1,8 @@
-## HEAD
+## 2.1.2 (2018-10-21)
 
 * Make tus-ruby-server fully work with non-rewindable Rack input (@janko-m)
 
-## 2.1.1 (2018-15-26)
+## 2.1.1 (2018-05-26)
 
 * Rename `:download_url` option to `:redirect_download` (@janko-m)
 
