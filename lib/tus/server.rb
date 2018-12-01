@@ -297,6 +297,7 @@ module Tus
 
       threads = 10.times.map do
         Thread.new do
+          Thread.current.report_on_exception = false if Thread.current.respond_to?(:report_on_exception=)
           results = []
           loop do
             part_uid = queue.deq(true) rescue break
