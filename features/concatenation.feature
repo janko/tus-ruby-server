@@ -35,7 +35,7 @@ Feature: Concatenation
       Upload-Length: 11
       Upload-Offset: 11
       """
-    And "Upload-Concat" response header should match "^final;/files/\w+ /files/\w+$"
+    And "Upload-Concat" response header should match "^final;http://example.com/files/\w+ http://example.com/files/\w+$"
 
     When I make a HEAD request to the concatenated file
       """
@@ -47,7 +47,7 @@ Feature: Concatenation
       Upload-Length: 11
       Upload-Offset: 11
       """
-    And "Upload-Concat" response header should match "^final;/files/\w+ /files/\w+$"
+    And "Upload-Concat" response header should match "^final;http://example.com/files/\w+ http://example.com/files/\w+$"
 
     When I make a GET request to the concatenated file
       """

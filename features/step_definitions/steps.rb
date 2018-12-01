@@ -65,7 +65,7 @@ end
 When(/^I send a concatenation request for the created files$/) do
   step "I make a POST request to /files", <<-EOS.chomp
 Tus-Resumable: 1.0.0
-Upload-Concat: final;#{@uids.map{|uid|"/files/#{uid}"}.join(" ")}
+Upload-Concat: final;#{@uids.map{|uid|"http://example.com/files/#{uid}"}.join(" ")}
   EOS
   @concatenated_uid = @response.location.split("/").last if @response.status == 201
 end

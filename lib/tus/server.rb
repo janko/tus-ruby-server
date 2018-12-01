@@ -285,7 +285,7 @@ module Tus
       if upload_concat.start_with?("final")
         string = upload_concat.split(";").last
         string.split(" ").each do |url|
-          error!(400, "Invalid Upload-Concat header") if url !~ %r{^#{request.script_name}/\w+$}
+          error!(400, "Invalid Upload-Concat header") if url !~ /#{request.script_name}\/\w+$/
         end
       end
     end

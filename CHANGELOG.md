@@ -1,3 +1,7 @@
+## HEAD
+
+* Accept absolute URLs of partial uploads when creating a final upload (@janko-m)
+
 ## 2.1.2 (2018-10-21)
 
 * Make tus-ruby-server fully work with non-rewindable Rack input (@janko-m)
