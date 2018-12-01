@@ -294,13 +294,14 @@ module Tus
     def validate_partial_uploads!(part_uids)
       queue = Queue.new
       part_uids.each { |part_uid| queue << part_uid }
+      queue.close
 
       threads = 10.times.map do
         Thread.new do
           Thread.current.report_on_exception = false if Thread.current.respond_to?(:report_on_exception=)
           results = []
           loop do
-            part_uid = queue.deq(true) rescue break
+            part_uid = queue.deq or break
             part_info = storage.read_info(part_uid)
             results << part_info["Upload-Concat"]
           end
