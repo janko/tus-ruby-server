@@ -1,5 +1,7 @@
 ## HEAD
 
+* Drop MRI 2.2 support (@janko-m)
+
 * Accept absolute URLs of partial uploads when creating a final upload (@janko-m)
 
 ## 2.1.2 (2018-10-21)

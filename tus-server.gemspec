@@ -2,7 +2,7 @@ Gem::Specification.new do |gem|
   gem.name         = "tus-server"
   gem.version      = "2.1.2"
 
-  gem.required_ruby_version = ">= 2.2"
+  gem.required_ruby_version = ">= 2.3"
 
   gem.summary      = "Ruby server implementation of tus.io, the open protocol for resumable file uploads."
 
