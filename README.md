@@ -252,6 +252,13 @@ can for example change the `:endpoint` to use S3's accelerate host:
 Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
 ```
 
+If you're using [concatenation], you can specify the concurrency in which S3
+storage will copy partial uploads to the final upload (defaults to `10`):
+
+```rb
+Tus::Storage::S3.new(concurrency: { concatenation: 20 }, **options)
+```
+
 ### Google Cloud Storage, Microsoft Azure Blob Storage
 
 While tus-ruby-server doesn't currently ship with integrations for Google Cloud

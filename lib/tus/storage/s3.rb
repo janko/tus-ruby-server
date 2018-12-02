@@ -16,11 +16,16 @@ module Tus
     class S3
       MIN_PART_SIZE = 5 * 1024 * 1024 # 5MB is the minimum part size for S3 multipart uploads
 
-      attr_reader :client, :bucket, :prefix, :upload_options
+      attr_reader :client, :bucket, :prefix, :upload_options, :concurrency
 
       # Initializes an aws-sdk-s3 client with the given credentials.
-      def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
+      def initialize(bucket:, prefix: nil, upload_options: {}, concurrency: {}, thread_count: nil, **client_options)
         fail ArgumentError, "the :bucket option was nil" unless bucket
+
+        if thread_count
+          warn "[Tus-Ruby-Server] :thread_count is deprecated and will be removed in the next major version, use :concurrency instead, e.g `concurrency: { concatenation: 20 }`"
+          concurrency[:concatenation] = thread_count
+        end
 
         resource = Aws::S3::Resource.new(**client_options)
 
@@ -28,7 +33,7 @@ module Tus
         @bucket         = resource.bucket(bucket)
         @prefix         = prefix
         @upload_options = upload_options
-        @thread_count   = thread_count
+        @concurrency    = concurrency
       end
 
       # Initiates multipart upload for the given upload, and stores its
@@ -124,7 +129,8 @@ module Tus
           end
 
           begin
-            info["multipart_parts"] << upload_part(chunk, uid, upload_id, part_offset += 1)
+            part = upload_part(chunk, uid, upload_id, part_offset += 1)
+            info["multipart_parts"] << part
             bytes_uploaded += chunk.bytesize
           rescue Seahorse::Client::NetworkingError => exception
             warn "ERROR: #{exception.inspect} occurred during upload"
@@ -258,12 +264,21 @@ module Tus
       # given objects into them. It uses a queue and a fixed-size thread pool
       # which consumes that queue.
       def copy_parts(objects, multipart_upload)
-        parts = compute_parts(objects, multipart_upload)
-        queue = parts.inject(Queue.new) { |queue, part| queue << part }
+        parts   = compute_parts(objects, multipart_upload)
+        input   = Queue.new
+        results = Queue.new
 
-        threads = @thread_count.times.map { copy_part_thread(queue) }
+        parts.each { |part| input << part }
+        input.close
 
-        threads.flat_map(&:value).sort_by { |part| part["part_number"] }
+        thread_count = concurrency[:concatenation] || 10
+        threads = thread_count.times.map { copy_part_thread(input, results) }
+
+        errors = threads.map(&:value).compact
+        fail errors.first if errors.any?
+
+        part_results = Array.new(results.size) { results.pop } # convert Queue into an Array
+        part_results.sort_by { |part| part.fetch("part_number") }
       end
 
       # Computes data required for copying objects into new multipart parts.
@@ -281,18 +296,18 @@ module Tus
 
       # Consumes the queue for new multipart part information and issues the
       # copy requests.
-      def copy_part_thread(queue)
+      def copy_part_thread(input, results)
         Thread.new do
           begin
-            results = []
             loop do
-              part = queue.deq(true) rescue break
-              results << copy_part(part)
+              part = input.pop or break
+              part_result = copy_part(part)
+              results << part_result
             end
-            results
-          rescue
-            queue.clear
-            raise
+            nil
+          rescue => error
+            input.clear # clear other work
+            error
           end
         end
       end

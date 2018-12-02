@@ -1,5 +1,7 @@
 ## HEAD
 
+* Replace `:thread_count` with `:concurrency` in S3 storage (@janko-m)
+
 * Validate that sum of partial uploads doesn't exceed `Tus-Max-Size` on concatenation (@janko-m)
 
 * Drop MRI 2.2 support (@janko-m)
