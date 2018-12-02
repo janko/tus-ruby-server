@@ -13,6 +13,17 @@ Given(/^I've set disposition to "(.+)"$/) do |disposition|
   @server.opts[:disposition] = disposition
 end
 
+Given(/^I've registered an? (\w+) hook$/) do |hook|
+  context = self
+  @server.public_send(hook) do |uid, info|
+    context.assert_instance_of String,    uid
+    context.assert_instance_of Tus::Info, info
+    context.assert_kind_of     Roda,      self
+
+    context.instance_variable_set(:"@#{hook}_called", true)
+  end
+end
+
 Given(/^a file$/) do |data|
   headers, input = data.split("\n\n")
   step "I've created a file", headers
@@ -52,9 +63,12 @@ When(/^I make an? (\w+) request to (\S+)$/) do |verb, path, data|
 end
 
 When(/^I append "(.+)" to the created file$/) do |input|
+  response = request(:head, "/files/#{@uids.last}", headers: { "Tus-Resumable" => "1.0.0" })
+  offset   = response.headers["Upload-Offset"] || "0"
+
   step "I make a PATCH request to the created file", <<-EOS.chomp
 Tus-Resumable: 1.0.0
-Upload-Offset: 0
+Upload-Offset: #{offset}
 Content-Type: application/offset+octet-stream
 
 #{input}
@@ -68,6 +82,12 @@ Tus-Resumable: 1.0.0
 Upload-Concat: final;#{@uids.map{|uid|"http://example.com/files/#{uid}"}.join(" ")}
   EOS
   @concatenated_uid = @response.location.split("/").last if @response.status == 201
+end
+
+When(/^I delete the created file$/) do
+  step "I make a DELETE request to the created file", <<-EOS.chomp
+Tus-Resumable: 1.0.0
+  EOS
 end
 
 When(/^I make an? (\w+) request to the created file$/) do |verb, data|
@@ -103,4 +123,12 @@ end
 Then(/^the expiration date should be refreshed$/) do
   expiration = Time.parse(@response.headers["Upload-Expires"])
   assert_in_delta Time.now + @server.opts[:expiration_time], expiration, 1
+end
+
+Then(/^the (\w+) hook should have been called$/) do |hook|
+  assert_equal true, instance_variable_get(:"@#{hook}_called")
+end
+
+Then(/^the (\w+) hook should not have been called$/) do |hook|
+  assert_nil instance_variable_get(:"@#{hook}_called")
 end

@@ -25,17 +25,29 @@ module Tus
     ]
     SUPPORTED_CHECKSUM_ALGORITHMS = %w[sha1 sha256 sha384 sha512 md5 crc32]
     RESUMABLE_CONTENT_TYPE = "application/offset+octet-stream"
+    HOOKS = %i[before_create after_create after_finish after_terminate]
 
     opts[:max_size]          = nil
     opts[:expiration_time]   = 7*24*60*60
     opts[:disposition]       = "inline"
     opts[:redirect_download] = nil
+    opts[:hooks]             = {}
 
     plugin :all_verbs
     plugin :default_headers, {"Content-Type" => ""}
     plugin :delete_empty_headers
     plugin :request_headers
     plugin :not_allowed
+
+    HOOKS.each do |hook|
+      define_singleton_method(hook) do |&block|
+        opts[:hooks][hook] = block
+      end
+
+      define_method(hook) do |*args|
+        instance_exec(*args, &opts[:hooks][hook]) if opts[:hooks][hook]
+      end
+    end
 
     route do |r|
       if request.headers["X-HTTP-Method-Override"]
@@ -78,6 +90,8 @@ module Tus
             "Upload-Expires"      => (Time.now + expiration_time).httpdate,
           )
 
+          before_create(uid, info)
+
           if info.final?
             validate_partial_uploads!(info.partial_uploads)
 
@@ -88,8 +102,9 @@ module Tus
             storage.create_file(uid, info.to_h)
           end
 
-          storage.update_info(uid, info.to_h)
+          after_create(uid, info)
 
+          storage.update_info(uid, info.to_h)
           response.headers.update(info.headers)
 
           file_url = "#{request.url.chomp("/")}/#{uid}"
@@ -155,6 +170,8 @@ module Tus
 
           if info.offset == info.length # last chunk
             storage.finalize_file(uid, info.to_h) if storage.respond_to?(:finalize_file)
+
+            after_finish(uid, info)
           end
 
           storage.update_info(uid, info.to_h)
@@ -198,6 +215,8 @@ module Tus
         # DELETE /{uid}
         r.delete do
           storage.delete_file(uid, info.to_h)
+
+          after_terminate(uid, info)
 
           no_content!
         end

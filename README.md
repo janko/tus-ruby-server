@@ -18,7 +18,7 @@ gem "tus-server", "~> 2.0"
 
 ## Usage
 
-The gem provides a `Tus::Server` Rack app, which you can mount inside your
+The gem provides a `Tus::Server` [Roda] app, which you can mount inside your
 main application. If you're using Rails, you can mount it in `config/routes.rb`:
 
 ```rb
@@ -361,6 +361,84 @@ def delete_file(uid, info = {})            ... end
 def expire_files(expiration_date)          ... end
 ```
 
+## Hooks
+
+You can register code to be executed on the following events:
+
+* `before_create` – before upload has been created
+* `after_create` – before upload has been created
+* `after_finish` – after the last chunk has been stored
+* `after_terminate` – after the upload has been deleted
+
+Each hook also receives two parameters: ID of the upload (`String`) and
+additional information about the upload (`Tus::Info`).
+
+```rb
+Tus::Server.after_finish do |uid, info|
+  uid  #=> "c0b67b04a9eccb4b1202000de628964f"
+  info #=> #<Tus::Info>
+
+  info.length        #=> 10      (Upload-Length)
+  info.offset        #=> 0       (Upload-Offset)
+  info.metadata      #=> {...}   (Upload-Metadata)
+  info.expires       #=> #<Time> (Upload-Expires)
+
+  info.partial?      #=> false   (Upload-Concat)
+  info.final?        #=> false   (Upload-Concat)
+
+  info.defer_length? #=> false   (Upload-Defer-Length)
+end
+```
+
+Because each hook is evaluated inside the `Tus::Server` instance (which is also
+a [Roda] instance), you can access request information and set response status
+and headers:
+
+```rb
+Tus::Server.after_terminate do |uid, info|
+  self     #=> #<Tus::Server> (and #<Roda>)
+  request  #=> #<Roda::Request>
+  response #=> #<Roda::Response>
+end
+```
+
+So, with hooks you could for example add authentication to `Tus::Server`:
+
+```rb
+Tus::Server.before_create do
+  authenticated = Authentication.call(request.headers["Authorization"])
+
+  unless authenticated
+    response.status = 403 # Forbidden
+    response.write("Not authenticated")
+    request.halt # return response now
+  end
+end
+```
+
+If you want to add hooks on more types of events, you can use Roda's
+[hooks][roda hooks] plugin to set `before` or `after` hooks for any request,
+which are also evaluated in context of the `Roda` instance:
+
+```rb
+Tus::Server.plugin :hooks
+Tus::Server.before do
+  # called before each Roda request
+end
+Tus::Server.after do
+  # called after each Roda request
+end
+```
+
+Provided that you're mounting `Tus::Server` inside your main app, any Rack
+middlewares that your main app uses will also be called for requests routed to
+the `Tus::Server`. If you want to add Rack middlewares to `Tus::Server`, you
+can do it by calling `Tus::Server.use`:
+
+```rb
+Tus::Server.use SomeRackMiddleware
+```
+
 ## Maximum size
 
 By default the size of files the tus server will accept is unlimited, but you
@@ -460,6 +538,8 @@ The tus-ruby-server was inspired by [rubytus] and [tusd].
 
 [MIT](/LICENSE.txt)
 
+[Roda]: https://github.com/jeremyevans/roda
+[roda hooks]: http://roda.jeremyevans.net/rdoc/classes/Roda/RodaPlugins/Hooks.html
 [tus resumable upload protocol]: http://tus.io/
 [tus-js-client]: https://github.com/tus/tus-js-client
 [creation]: http://tus.io/protocols/resumable-upload.html#creation

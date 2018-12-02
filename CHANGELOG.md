@@ -1,5 +1,7 @@
 ## HEAD
 
+* Add `before_create`, `after_create`, `after_finish`, and `after_terminate` hooks (@janko-m)
+
 * Rename `Tus::Info#concatenation?` to `Tus::Info#final?` (@janko-m)
 
 * Use `Storage#concurrency` for parallelized retrieval of partial uploads in `Upload-Concat` validation (@janko-m)
