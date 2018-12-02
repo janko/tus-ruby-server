@@ -405,7 +405,7 @@ end
 So, with hooks you could for example add authentication to `Tus::Server`:
 
 ```rb
-Tus::Server.before_create do
+Tus::Server.before_create do |uid, info|
   authenticated = Authentication.call(request.headers["Authorization"])
 
   unless authenticated
