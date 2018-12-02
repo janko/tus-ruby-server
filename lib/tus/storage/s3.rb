@@ -20,10 +20,12 @@ module Tus
 
       # Initializes an aws-sdk-s3 client with the given credentials.
       def initialize(bucket:, prefix: nil, upload_options: {}, thread_count: 10, **client_options)
+        fail ArgumentError, "the :bucket option was nil" unless bucket
+
         resource = Aws::S3::Resource.new(**client_options)
 
         @client         = resource.client
-        @bucket         = resource.bucket(bucket) or fail(ArgumentError, "the :bucket option was nil")
+        @bucket         = resource.bucket(bucket)
         @prefix         = prefix
         @upload_options = upload_options
         @thread_count   = thread_count

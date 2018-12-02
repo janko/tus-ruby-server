@@ -33,7 +33,9 @@ describe Tus::Storage::S3 do
     end
 
     it "raises explanatory error when :bucket was nil" do
-      assert_raises(ArgumentError) { s3(bucket: nil) }
+      error = assert_raises(ArgumentError) { s3(bucket: nil) }
+
+      assert_equal "the :bucket option was nil", error.message
     end
   end
 
