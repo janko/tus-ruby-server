@@ -1,5 +1,7 @@
 ## HEAD
 
+* Validate that sum of partial uploads doesn't exceed `Tus-Max-Size` on concatenation (@janko-m)
+
 * Drop MRI 2.2 support (@janko-m)
 
 * Accept absolute URLs of partial uploads when creating a final upload (@janko-m)

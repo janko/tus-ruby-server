@@ -51,17 +51,21 @@ module Tus
       Time.parse(@hash["Upload-Expires"])
     end
 
-    def concatenation?
-      @hash["Upload-Concat"].to_s.start_with?("final")
+    def partial?
+      @hash["Upload-Concat"] == "partial"
     end
 
-    def defer_length?
-      @hash["Upload-Defer-Length"] == "1"
+    def final?
+      @hash["Upload-Concat"].to_s.start_with?("final")
     end
 
     def partial_uploads
       urls = @hash["Upload-Concat"].split(";").last.split(" ")
       urls.map { |url| url.split("/").last }
+    end
+
+    def defer_length?
+      @hash["Upload-Defer-Length"] == "1"
     end
 
     def remaining_length
