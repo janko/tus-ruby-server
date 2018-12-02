@@ -299,7 +299,10 @@ module Tus
 
       results = Queue.new
 
-      threads = 10.times.map do
+      thread_count   = storage.concurrency[:concatenation] if storage.respond_to?(:concurrency)
+      thread_count ||= 10
+
+      threads = thread_count.times.map do
         Thread.new do
           begin
             loop do

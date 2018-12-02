@@ -428,6 +428,19 @@ The following checksum algorithms are supported for the `checksum` extension:
 * MD5
 * CRC32
 
+## Concatenation
+
+When validating the `Upload-Concat` header for the final upload,
+tus-ruby-server needs to first fetch info about all partial uploads in order to
+check whether everything is in order. By default this retrieval is parallelized
+with 10 threads, but if you're using S3 storage you can change the
+`:concurrency`, and `Tus::Server` will automatically pick it up for its
+validation:
+
+```rb
+Tus::Storage::S3.new(concurrency: { concatenation: 20 }, **options)
+```
+
 ## Tests
 
 Run tests with
