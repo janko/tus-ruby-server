@@ -1,5 +1,7 @@
 ## HEAD
 
+* Rename `Tus::Info#concatenation?` to `Tus::Info#final?` (@janko-m)
+
 * Use `Storage#concurrency` for parallelized retrieval of partial uploads in `Upload-Concat` validation (@janko-m)
 
 * Replace `:thread_count` with `:concurrency` in S3 storage (@janko-m)
