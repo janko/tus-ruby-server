@@ -1,7 +1,7 @@
 Feature: Preflight
 
   Scenario: Top Level
-    When I make an OPTIONS request to /files
+    When I make an OPTIONS request to "/files"
       """
       """
     Then I should see response status "204 No Content"
@@ -16,7 +16,7 @@ Feature: Preflight
     And I should not see "Content-Length" response header
 
   Scenario: For Upload
-    When I make an OPTIONS request to /files/uid
+    When I make an OPTIONS request to "/files/uid"
       """
       """
     Then I should see response status "204 No Content"
@@ -30,19 +30,19 @@ Feature: Preflight
     And I should not see "Content-Length" response header
 
   Scenario: Max Size
-    When I make an OPTIONS request to /files
+    When I make an OPTIONS request to "/files"
       """
       """
     Then I should not see "Tus-Max-Size" response header
 
-    When I make an OPTIONS request to /files/uid
+    When I make an OPTIONS request to "/files/uid"
       """
       """
     Then I should not see "Tus-Max-Size" response header
 
     Given I've set max size to 10
 
-    When I make an OPTIONS request to /files
+    When I make an OPTIONS request to "/files"
       """
       """
     Then I should see response headers
@@ -50,7 +50,7 @@ Feature: Preflight
       Tus-Max-Size: 10
       """
 
-    When I make an OPTIONS request to /files/uid
+    When I make an OPTIONS request to "/files/uid"
       """
       """
     Then I should see response headers

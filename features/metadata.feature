@@ -59,7 +59,7 @@ Feature: Metadata
       """
 
   Scenario: Invalid format
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 0
@@ -67,7 +67,7 @@ Feature: Metadata
       """
     Then I should see response status "400 Bad Request"
 
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 0
@@ -75,7 +75,7 @@ Feature: Metadata
       """
     Then I should see response status "400 Bad Request"
 
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 0

@@ -1,7 +1,7 @@
 Feature: Misc
 
   Scenario: Method Override
-    When I make a GET request to /files/unknown
+    When I make a GET request to "/files/unknown"
       """
       X-HTTP-Method-Override: OPTIONS
       """
@@ -11,7 +11,7 @@ Feature: Misc
       """
 
   Scenario: Trailing Slash
-    When I make an OPTIONS request to /files/
+    When I make an OPTIONS request to "/files/"
       """
       """
     Then I should see response status "204 No Content"
@@ -24,14 +24,14 @@ Feature: Misc
       """
 
   Scenario: Not Allowed
-    When I make a PUT request to /files
+    When I make a PUT request to "/files"
       """
       Tus-Resumable: 1.0.0
       """
     Then I should see response status "405 Not Allowed"
 
   Scenario: Missing Tus-Resumable
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Upload-Length: 100
       """
@@ -43,7 +43,7 @@ Feature: Misc
       """
 
   Scenario: Invalid Tus-Resumable
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 2.0.0
       Upload-Length: 100

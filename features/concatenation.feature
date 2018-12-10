@@ -1,7 +1,7 @@
 Feature: Concatenation
 
   Scenario: Creating partial upload
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 5
@@ -140,7 +140,7 @@ Feature: Concatenation
     And I should see "The sum of partial upload lengths exceed Tus-Max-Size"
 
   Scenario: Invalid Upload-Concat
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 5

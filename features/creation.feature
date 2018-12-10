@@ -1,7 +1,7 @@
 Feature: Creation
 
   Scenario: Valid Upload-Length
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 100
@@ -11,14 +11,14 @@ Feature: Creation
     And I should not see "Content-Type" response header
 
   Scenario: Invalid Upload-Length
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: foo
       """
     Then I should see response status "400 Bad Request"
 
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: -1
@@ -27,7 +27,7 @@ Feature: Creation
 
   Scenario: Too large Upload-Length
     Given I've set max size to 10
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 100
@@ -35,7 +35,7 @@ Feature: Creation
     Then I should see response status "413 Request entity too large"
 
   Scenario: Missing Tus-Resumable
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Upload-Length: 100
       """

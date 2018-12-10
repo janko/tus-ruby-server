@@ -160,7 +160,7 @@ Feature: Download
     And I should see "Cannot download unfinished upload"
 
   Scenario: Unknown upload
-    When I make a GET request to /files/unknown
+    When I make a GET request to "/files/unknown"
       """
       """
     Then I should see response status "404 Not Found"

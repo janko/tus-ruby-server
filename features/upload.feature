@@ -155,7 +155,7 @@ Feature: Upload
     Then I should see response status "415 Unsupported Media type"
 
   Scenario: Upload not found
-    When I make a PATCH request to /files/unknown
+    When I make a PATCH request to "/files/unknown"
       """
       Tus-Resumable: 1.0.0
       Upload-Offset: 0

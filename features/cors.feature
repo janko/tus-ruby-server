@@ -1,7 +1,7 @@
 Feature: CORS
 
   Scenario: Preflight requests
-    When I make an OPTIONS request to /files
+    When I make an OPTIONS request to "/files"
       """
       Tus-Resumable: 1.0.0
       Origin: tus-server.org
@@ -15,7 +15,7 @@ Feature: CORS
       """
 
   Scenario: Regular requests
-    When I make a HEAD request to /files/unknown
+    When I make a HEAD request to "/files/unknown"
       """
       Tus-Resumable: 1.0.0
       Origin: tus-server.org

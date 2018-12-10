@@ -21,7 +21,7 @@ Feature: Head
       """
 
   Scenario: Nonexisting file
-    When I make a HEAD request to /files/unknown
+    When I make a HEAD request to "/files/unknown"
       """
       Tus-Resumable: 1.0.0
       """

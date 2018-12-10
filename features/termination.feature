@@ -35,7 +35,7 @@ Feature: Termination
     Then I should see response status "404 Not Found"
 
   Scenario: Unknown upload
-    When I make a DELETE request to /files/unknown
+    When I make a DELETE request to "/files/unknown"
       """
       Tus-Resumable: 1.0.0
       """

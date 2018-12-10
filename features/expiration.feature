@@ -1,7 +1,7 @@
 Feature: Expiration
 
   Scenario: Expiration on creation
-    When I make a POST request to /files
+    When I make a POST request to "/files"
       """
       Tus-Resumable: 1.0.0
       Upload-Length: 10
