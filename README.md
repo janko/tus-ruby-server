@@ -227,7 +227,7 @@ to `:redirect_download`, which will then be evaluated in the context of the
 
 ```rb
 Tus::Server.opts[:redirect_download] = -> (uid, info, **options) do
-  storage.file_url(uid, info, response_expires: 10, **options) # link expires after 10 seconds
+  storage.file_url(uid, info, expires_in: 10, **options) # link expires after 10 seconds
 end
 ```
 
@@ -242,7 +242,7 @@ You can also specify additional options that will be fowarded to
 [`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
 
 ```rb
-Tus::Storage::S3.new(upload_options: {content_disposition: "attachment"}, **options)
+Tus::Storage::S3.new(upload_options: { content_disposition: "attachment" }, **options)
 ```
 
 All other options will be forwarded to [`Aws::S3::Client#initialize`], so you
