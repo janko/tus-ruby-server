@@ -15,6 +15,7 @@ Gem::Specification.new do |gem|
   gem.require_path = "lib"
 
   gem.add_dependency "roda", ">= 2.27", "< 4"
+  gem.add_dependency "content_disposition", "~> 1.0"
 
   gem.add_development_dependency "rake", "~> 11.1"
   gem.add_development_dependency "minitest", "~> 5.8"

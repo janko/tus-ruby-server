@@ -55,7 +55,7 @@ Feature: Download
       """
     And I should see response headers
       """
-      Content-Disposition: inline; filename="nature.jpg"
+      Content-Disposition: inline; filename="nature.jpg"; filename*=UTF-8''nature.jpg
       """
 
   Scenario: Content-Type (default)

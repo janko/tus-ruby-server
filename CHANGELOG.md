@@ -1,3 +1,7 @@
+## HEAD
+
+* Use `content_disposition` gem to generate `Content-Disposition` in download endpoint (@janko-m)
+
 ## 2.2.0 (2018-12-02)
 
 * Add `before_create`, `after_create`, `after_finish`, and `after_terminate` hooks (@janko-m)

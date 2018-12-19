@@ -1,6 +1,7 @@
 # frozen-string-literal: true
 
 require "roda"
+require "rack/rewindable_input"
 
 require "tus/storage/filesystem"
 require "tus/info"
@@ -8,10 +9,10 @@ require "tus/input"
 require "tus/checksum"
 require "tus/errors"
 
+require "content_disposition"
+
 require "securerandom"
 require "time"
-
-require "rack/rewindable_input"
 
 module Tus
   class Server < Roda
@@ -188,9 +189,8 @@ module Tus
           name     = metadata["name"] || metadata["filename"]
           type     = metadata["type"] || metadata["content_type"]
 
-          content_disposition  = opts[:disposition]
-          content_disposition += "; filename=\"#{name}\"" if name
-          content_type = type || "application/octet-stream"
+          content_disposition = ContentDisposition.(disposition: opts[:disposition], filename: name)
+          content_type        = type || "application/octet-stream"
 
           if redirect_download
             redirect_url = instance_exec(uid, info.to_h,
