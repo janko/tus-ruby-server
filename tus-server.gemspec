@@ -6,7 +6,7 @@ Gem::Specification.new do |gem|
 
   gem.summary      = "Ruby server implementation of tus.io, the open protocol for resumable file uploads."
 
-  gem.homepage     = "https://github.com/janko-m/tus-ruby-server"
+  gem.homepage     = "https://github.com/janko/tus-ruby-server"
   gem.authors      = ["Janko Marohnić"]
   gem.email        = ["janko.marohnic@gmail.com"]
   gem.license      = "MIT"

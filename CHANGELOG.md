@@ -86,7 +86,7 @@
 
 * Ignore retryable networking errors in `Tus::Storage::S3#patch_file` for resiliency (@janko)
 
-* Deprecate `Tus::Server::Goliath` in favour of [goliath-rack_proxy](https://github.com/janko-m/goliath-rack_proxy) (@janko)
+* Deprecate `Tus::Server::Goliath` in favour of [goliath-rack_proxy](https://github.com/janko/goliath-rack_proxy) (@janko)
 
 * Reduce string allocations in MRI 2.3+ with `frozen-string-literal: true` magic comments (@janko)
 
