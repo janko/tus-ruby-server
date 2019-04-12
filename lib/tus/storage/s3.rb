@@ -209,13 +209,14 @@ module Tus
       # multipart uploads still in progress, it checks the upload date of the
       # last multipart part.
       def expire_files(expiration_date)
-        old_objects = bucket.objects.select do |object|
+        old_objects = bucket.objects(prefix: @prefix).select do |object|
           object.last_modified <= expiration_date
         end
 
         delete(old_objects)
 
         bucket.multipart_uploads.each do |multipart_upload|
+          next if @prefix && !multipart_upload.key.start_with?(@prefix)
           # no need to check multipart uploads initiated before expiration date
           next if multipart_upload.initiated > expiration_date
 

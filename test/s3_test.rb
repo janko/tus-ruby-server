@@ -488,7 +488,7 @@ describe Tus::Storage::S3 do
       @expiration_date = Time.now.utc
     end
 
-    it "delets objects that are past the expiration date" do
+    it "deletes objects that are past the expiration date" do
       @storage.client.stub_responses(:list_objects, contents: [
         { key: "uid1", last_modified: @expiration_date - 1 },
         { key: "uid2", last_modified: @expiration_date },
@@ -535,6 +535,25 @@ describe Tus::Storage::S3 do
       @storage.expire_files(@expiration_date)
 
       assert_equal ["upload_id2", "upload_id3"], deleted_multipart_uploads
+    end
+
+    it "takes :prefix into account" do
+      @storage = s3(prefix: "prefix")
+      @storage.client.stub_responses(:list_multipart_uploads, uploads: [
+        { upload_id: "upload_id1", key: "prefix/uid1", initiated: @expiration_date },
+        { upload_id: "upload_id2", key: "uid2",        initiated: @expiration_date },
+      ])
+
+      @storage.expire_files(@expiration_date)
+
+      assert_equal 5, @storage.client.api_requests.count
+
+      assert_equal :list_objects,           @storage.client.api_requests[0][:operation_name]
+      assert_equal "prefix",                @storage.client.api_requests[0][:params][:prefix]
+
+      assert_equal :abort_multipart_upload, @storage.client.api_requests[3][:operation_name]
+      assert_equal "upload_id1",            @storage.client.api_requests[3][:params][:upload_id]
+      assert_equal "prefix/uid1",           @storage.client.api_requests[3][:params][:key]
     end
   end
 end

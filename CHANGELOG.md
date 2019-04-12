@@ -1,3 +1,7 @@
+## HEAD
+
+* Take `:prefix` into account in `Tus::Storage::S3#expire_files` (@janko)
+
 ## 2.2.1 (2018-12-19)
 
 * Use `content_disposition` gem to generate `Content-Disposition` in download endpoint (@janko)
