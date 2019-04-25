@@ -240,4 +240,4 @@ describe Tus::Storage::Gridfs do
       assert_equal "hello world", chunks.map { |chunk| chunk[:data].data }.join
     end
   end
-end if ENV["MONGO"]
+end
