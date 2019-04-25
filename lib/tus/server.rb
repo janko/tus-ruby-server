@@ -198,7 +198,7 @@ module Tus
             range = handle_range_request!(info.length)
 
             response.headers["Content-Disposition"] = headers.fetch(:content_disposition)
-            response.headers["Content-Type"]        = headers.fetch(:content_type)
+            response.headers["Content-Type"]        = headers.fetch(:content_type) if headers[:content_type]
             response.headers["ETag"]                = headers.fetch(:etag)
 
             body = storage.get_file(uid, info.to_h, range: range)
@@ -400,7 +400,7 @@ module Tus
 
       {
         content_disposition: ContentDisposition.(disposition: opts[:disposition], filename: name),
-        content_type:        type || "application/octet-stream",
+        content_type:        type,
         etag:                %(W/"#{uid}"),
       }
     end

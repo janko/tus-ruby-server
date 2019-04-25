@@ -28,7 +28,7 @@ Feature: Download
     When I make a GET request to the created file
       """
       """
-    And I should see response headers
+    Then I should see response headers
       """
       Content-Disposition: inline
       """
@@ -37,7 +37,7 @@ Feature: Download
     When I make a GET request to the created file
       """
       """
-    And I should see response headers
+    Then I should see response headers
       """
       Content-Disposition: attachment
       """
@@ -53,7 +53,7 @@ Feature: Download
     When I make a GET request to the created file
       """
       """
-    And I should see response headers
+    Then I should see response headers
       """
       Content-Disposition: inline; filename="nature.jpg"; filename*=UTF-8''nature.jpg
       """
@@ -68,10 +68,7 @@ Feature: Download
     When I make a GET request to the created file
       """
       """
-    And I should see response headers
-      """
-      Content-Type: application/octet-stream
-      """
+    Then I should not see "Content-Type" response header
 
   Scenario: Content-Type (from type)
     Given a file
@@ -84,7 +81,7 @@ Feature: Download
     When I make a GET request to the created file
       """
       """
-    And I should see response headers
+    Then I should see response headers
       """
       Content-Type: image/jpeg
       """

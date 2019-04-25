@@ -1,5 +1,7 @@
 ## HEAD
 
+* Don't return any `Content-Type` when type is not specified in metadata (@janko)
+
 * Add `ETag` header to download endpoint to prevent `Rack::ETag` buffering file content (@janko)
 
 * Take `:prefix` into account in `Tus::Storage::S3#expire_files` (@janko)
