@@ -185,26 +185,21 @@ module Tus
         r.get do
           validate_upload_finished!(info)
 
-          metadata = info.metadata
-          name     = metadata["name"] || metadata["filename"]
-          type     = metadata["type"] || metadata["content_type"]
-
-          content_disposition = ContentDisposition.(disposition: opts[:disposition], filename: name)
-          content_type        = type || "application/octet-stream"
+          headers = download_headers(uid, info)
 
           if redirect_download
             redirect_url = instance_exec(uid, info.to_h,
-              content_type:        content_type,
-              content_disposition: content_disposition,
+              content_type:        headers.fetch(:content_type),
+              content_disposition: headers.fetch(:content_disposition),
               &redirect_download)
 
             r.redirect redirect_url
           else
             range = handle_range_request!(info.length)
 
-            response.headers["Content-Length"]      = range.size.to_s
-            response.headers["Content-Disposition"] = content_disposition
-            response.headers["Content-Type"]        = content_type
+            response.headers["Content-Disposition"] = headers.fetch(:content_disposition)
+            response.headers["Content-Type"]        = headers.fetch(:content_type)
+            response.headers["ETag"]                = headers.fetch(:etag)
 
             body = storage.get_file(uid, info.to_h, range: range)
 
@@ -392,7 +387,35 @@ module Tus
         response.headers["Content-Range"] = "bytes #{range.begin}-#{range.end}/#{length}"
       end
 
+      response.headers["Content-Length"] = range.size.to_s
+
       range
+    end
+
+    def download_headers(uid, info)
+      metadata = info.metadata
+
+      name = metadata["name"] || metadata["filename"]
+      type = metadata["type"] || metadata["content_type"]
+
+      {
+        content_disposition: ContentDisposition.(disposition: opts[:disposition], filename: name),
+        content_type:        type || "application/octet-stream",
+        etag:                %(W/"#{uid}"),
+      }
+    end
+
+    def redirect_download
+      value = opts[:redirect_download]
+
+      if opts[:download_url]
+        value ||= opts[:download_url]
+        warn "[TUS-RUBY-SERVER DEPRECATION] The :download_url option has been renamed to :redirect_download."
+      end
+
+      value = storage.method(:file_url) if value == true
+
+      value
     end
 
     def handle_cors!
@@ -427,19 +450,6 @@ module Tus
       response.write(message) unless request.head?
       response.headers["Content-Type"] = "text/plain"
       request.halt
-    end
-
-    def redirect_download
-      value = opts[:redirect_download]
-
-      if opts[:download_url]
-        value ||= opts[:download_url]
-        warn "[TUS-RUBY-SERVER DEPRECATION] The :download_url option has been renamed to :redirect_download."
-      end
-
-      value = storage.method(:file_url) if value == true
-
-      value
     end
 
     def storage

@@ -108,6 +108,18 @@ Feature: Download
       """
     And I should see "world"
 
+  Scenario: ETag
+    Given a file
+      """
+      Upload-Length: 11
+
+      hello world
+      """
+    When I make a GET request to the created file
+      """
+      """
+    Then "ETag" response header should match "W/\"\w+\""
+
   Scenario: Download URL (default)
     Given a file
       """
