@@ -1,5 +1,7 @@
 ## HEAD
 
+* Allow `Upload-Concat` and `Upload-Defer-Length` headers in CORS headers (@janko)
+
 * Always override `:content_disposition` option with the value from `:upload_options` in `S3#create_file` (@janko)
 
 * Apply `name`/`type` metadata to `:content_type`/`:content_disposition` options in `S3#create_file` (@janko)
