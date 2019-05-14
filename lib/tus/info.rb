@@ -40,7 +40,7 @@ module Tus
     end
 
     def offset
-      Integer(@hash["Upload-Offset"])
+      Integer(@hash["Upload-Offset"]) if @hash["Upload-Offset"]
     end
 
     def metadata

@@ -15,12 +15,16 @@ require "cgi"
 module Tus
   module Storage
     class S3
-      MIN_PART_SIZE = 5 * 1024 * 1024 # 5MB is the minimum part size for S3 multipart uploads
+      # AWS S3 multipart upload limits
+      MIN_PART_SIZE       = 5 * 1024 * 1024
+      MAX_PART_SIZE       = 5 * 1024 * 1024 * 1024
+      MAX_MULTIPART_PARTS = 10_000
+      MAX_OBJECT_SIZE     = 5 * 1024 * 1024 * 1024 * 1024
 
-      attr_reader :client, :bucket, :prefix, :upload_options, :concurrency
+      attr_reader :client, :bucket, :prefix, :upload_options, :limits, :concurrency
 
       # Initializes an aws-sdk-s3 client with the given credentials.
-      def initialize(bucket:, prefix: nil, upload_options: {}, concurrency: {}, thread_count: nil, **client_options)
+      def initialize(bucket:, prefix: nil, upload_options: {}, limits: {}, concurrency: {}, thread_count: nil, **client_options)
         fail ArgumentError, "the :bucket option was nil" unless bucket
 
         if thread_count
@@ -34,6 +38,7 @@ module Tus
         @bucket         = resource.bucket(bucket)
         @prefix         = prefix
         @upload_options = upload_options
+        @limits         = limits
         @concurrency    = concurrency
       end
 
@@ -41,6 +46,10 @@ module Tus
       # information inside the info hash.
       def create_file(uid, info = {})
         tus_info = Tus::Info.new(info)
+
+        if tus_info.length && tus_info.length > max_object_size
+          fail Tus::Error, "upload length exceeds maximum S3 object size"
+        end
 
         options = {}
         options[:content_type] = tus_info.type if tus_info.type
@@ -99,21 +108,22 @@ module Tus
         part_offset    = info["multipart_parts"].count
         bytes_uploaded = 0
 
-        jobs = []
-        chunk = input.read(MIN_PART_SIZE)
+        part_size = calculate_part_size(tus_info.length)
+
+        chunk = input.read(part_size)
 
         while chunk
-          next_chunk = input.read(MIN_PART_SIZE)
+          next_chunk = input.read(part_size)
 
           # merge next chunk into previous if it's smaller than minimum chunk size
-          if next_chunk && next_chunk.bytesize < MIN_PART_SIZE
+          if next_chunk && next_chunk.bytesize < part_size
             chunk << next_chunk
             next_chunk.clear
             next_chunk = nil
           end
 
-          # abort if chunk is smaller than 5MB and is not the last chunk
-          if chunk.bytesize < MIN_PART_SIZE
+          # abort if chunk is smaller than part size and is not the last chunk
+          if chunk.bytesize < part_size
             break if (tus_info.length && tus_info.offset) &&
                      chunk.bytesize + tus_info.offset < tus_info.length
           end
@@ -226,6 +236,23 @@ module Tus
         { "part_number" => part_number, "etag" => response.etag }
       end
 
+      # Calculates minimum multipart part size required to upload the whole
+      # file, taking into account AWS S3 multipart limits on part size and
+      # number of parts.
+      def calculate_part_size(length)
+        return min_part_size if length.nil?
+        return length        if length <= min_part_size
+        return min_part_size if length <= min_part_size * max_multipart_parts
+
+        part_size = Rational(length, max_multipart_parts).ceil
+
+        if part_size > max_part_size
+          fail Tus::Error, "chunk size for upload exceeds maximum part size"
+        end
+
+        part_size
+      end
+
       def delete(objects)
         # S3 can delete maximum of 1000 objects in a single request
         objects.each_slice(1000) do |objects_batch|
@@ -299,6 +326,11 @@ module Tus
       def object(key)
         bucket.object([*prefix, key].join("/"))
       end
+
+      def min_part_size;       limits.fetch(:min_part_size,       MIN_PART_SIZE);       end
+      def max_part_size;       limits.fetch(:max_part_size,       MAX_PART_SIZE);       end
+      def max_multipart_parts; limits.fetch(:max_multipart_parts, MAX_MULTIPART_PARTS); end
+      def max_object_size;     limits.fetch(:max_object_size,     MAX_OBJECT_SIZE);     end
     end
   end
 end

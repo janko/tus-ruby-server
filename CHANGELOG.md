@@ -1,5 +1,11 @@
 ## HEAD
 
+* Allow uploading files larger than 50 GB to S3 storage by scaling the part size according to upload length (@janko)
+
+* Allow S3 limits to be overriden via the `:limits` option (@janko)
+
+* Reject uploads larger than 5 TB in `S3#create_file` (@janko)
+
 * Remove superfluous `#head_object` operation from `S3#concatenate` (@janko)
 
 * Validate that partial uploads are finished on the concatenation request (@janko)

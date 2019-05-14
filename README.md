@@ -206,9 +206,70 @@ Tus::Server.opts[:storage] = Tus::Storage::S3.new(
 )
 ```
 
-One thing to note is that S3's multipart API requires each chunk except the
-last to be **5MB or larger**, so that is the minimum chunk size that you can
-specify on your tus client if you want to use the S3 storage.
+If you want to files to be stored in a certain subdirectory, you can specify
+a `:prefix` in the storage configuration.
+
+```rb
+Tus::Storage::S3.new(prefix: "tus", **options)
+```
+
+You can also specify additional options that will be fowarded to
+[`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
+
+```rb
+Tus::Storage::S3.new(upload_options: { acl: "public-read" }, **options)
+```
+
+All other options will be forwarded to [`Aws::S3::Client#initialize`]:
+
+```rb
+Tus::Storage::S3.new(
+  use_accelerate_endpoint: true,
+  logger: Logger.new(STDOUT),
+  retry_limit: 5,
+  http_open_timeout: 10,
+  # ...
+)
+```
+
+If you're using [concatenation], you can specify the concurrency in which S3
+storage will copy partial uploads to the final upload (defaults to `10`):
+
+```rb
+Tus::Storage::S3.new(concurrency: { concatenation: 20 }, **options)
+```
+
+#### Limits
+
+Be aware that the AWS S3 Multipart Upload API has the following limits:
+
+| Item                               | Specification                         |
+| ----                               | -------------                         |
+| Part size                          | 5 MB to 5 GB, last part can be < 5 MB |
+| Maximum number of parts per upload | 10,000                                |
+| Maximum object size                | 5 TB                                  |
+
+This means that if you're chunking uploads in your tus client, the chunk size
+needs to be **5 MB or larger**. Furthermore, if you're allowing your users to
+upload files larger than 50 GB, you will the minimum chunk size needs to be
+higher (`ceil(max_length, max_multipart_parts)`). Note that chunking is
+optional if you're running on Falcon, but it's mandatory if you're using Puma
+or another web server.
+
+`Tus::Storage::S3` is relying on the above limits for determining the multipart
+part size. If you're using a different S3-compatible service which has different
+limits, you should pass them in when initializing the storage:
+
+```rb
+Tus::Storage::S3.new(limits: {
+  min_part_size:       5 * 1024 * 1024,
+  max_part_size:       5 * 1024 * 1024 * 1024,
+  max_multipart_parts: 10_000,
+  max_object_size:     5 * 1024 * 1024 * 1024,
+}, **options)
+```
+
+#### Serving files
 
 If you'll be retrieving uploaded files through the tus server app, it's
 recommended to set `Tus::Server.opts[:redirect_download]` to `true`. This will
@@ -229,34 +290,6 @@ to `:redirect_download`, which will then be evaluated in the context of the
 Tus::Server.opts[:redirect_download] = -> (uid, info, **options) do
   storage.file_url(uid, info, expires_in: 10, **options) # link expires after 10 seconds
 end
-```
-
-If you want to files to be stored in a certain subdirectory, you can specify
-a `:prefix` in the storage configuration.
-
-```rb
-Tus::Storage::S3.new(prefix: "tus", **options)
-```
-
-You can also specify additional options that will be fowarded to
-[`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
-
-```rb
-Tus::Storage::S3.new(upload_options: { content_disposition: "attachment" }, **options)
-```
-
-All other options will be forwarded to [`Aws::S3::Client#initialize`], so you
-can for example change the `:endpoint` to use S3's accelerate host:
-
-```rb
-Tus::Storage::S3.new(endpoint: "https://s3-accelerate.amazonaws.com", **options)
-```
-
-If you're using [concatenation], you can specify the concurrency in which S3
-storage will copy partial uploads to the final upload (defaults to `10`):
-
-```rb
-Tus::Storage::S3.new(concurrency: { concatenation: 20 }, **options)
 ```
 
 ### Google Cloud Storage, Microsoft Azure Blob Storage

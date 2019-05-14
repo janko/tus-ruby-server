@@ -84,6 +84,12 @@ describe Tus::Storage::S3 do
       assert_equal "foo/bar",                @storage.client.api_requests[0][:params][:content_type]
       assert_equal "attachment",             @storage.client.api_requests[0][:params][:content_disposition]
     end
+
+    it "rejects files larger than the S3 limit" do
+      assert_raises(Tus::Error) do
+        @storage.create_file("uid", { "Upload-Length" => (6 * (1024**4)).to_s })
+      end
+    end
   end
 
   describe "#patch_file" do
@@ -134,7 +140,9 @@ describe Tus::Storage::S3 do
                     { "part_number" => 3, "etag" => "etag3" }], @info["multipart_parts"]
     end
 
-    it "uploads in batches of 5MB" do
+    it "uploads in batches of 5MB with smaller Upload-Length" do
+      @info.merge!("Upload-Length" => (40_000*1024*1024).to_s)
+
       input = StringIO.new("a" * (10*1024*1024))
 
       @storage.client.stub_responses(:upload_part, [
@@ -158,15 +166,35 @@ describe Tus::Storage::S3 do
                     { "part_number" => 2, "etag" => "etag2" }], @info["multipart_parts"]
     end
 
+    it "respects maximum part limit with larger Upload-Length" do
+      @info.merge!("Upload-Length" => (100_000*1024*1024).to_s)
+
+      input = StringIO.new("a" * (10*1024*1024))
+
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+      ])
+
+      assert_equal 10 * 1024 * 1024, @storage.patch_file("uid", input, @info)
+
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :upload_part,        @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,                   @storage.client.api_requests[0][:params][:part_number]
+      assert_equal (10*1024*1024).to_s, @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal [{ "part_number" => 1, "etag" => "etag1" }], @info["multipart_parts"]
+    end
+
     it "merges last chunk into previous if it's smaller than minimum allowed" do
-      input = StringIO.new("a" * (10*1024*1024 + 1))
+      input = StringIO.new("a" * (12*1024*1024))
 
       @storage.client.stub_responses(:upload_part, [
         { etag: "etag1" },
         { etag: "etag2" },
       ])
 
-      assert_equal 10*1024*1024 + 1, @storage.patch_file("uid", input, @info)
+      assert_equal 12*1024*1024, @storage.patch_file("uid", input, @info)
 
       assert_equal 2, @storage.client.api_requests.count
 
@@ -174,9 +202,9 @@ describe Tus::Storage::S3 do
       assert_equal 1,                  @storage.client.api_requests[0][:params][:part_number]
       assert_equal (5*1024*1024).to_s, @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
 
-      assert_equal :upload_part,           @storage.client.api_requests[1][:operation_name]
-      assert_equal 2,                      @storage.client.api_requests[1][:params][:part_number]
-      assert_equal (5*1024*1024 + 1).to_s, @storage.client.api_requests[1][:context].http_request.headers["Content-Length"]
+      assert_equal :upload_part,       @storage.client.api_requests[1][:operation_name]
+      assert_equal 2,                  @storage.client.api_requests[1][:params][:part_number]
+      assert_equal (7*1024*1024).to_s, @storage.client.api_requests[1][:context].http_request.headers["Content-Length"]
 
       assert_equal [{ "part_number" => 1, "etag" => "etag1" },
                     { "part_number" => 2, "etag" => "etag2" }], @info["multipart_parts"]
@@ -252,6 +280,26 @@ describe Tus::Storage::S3 do
       assert_equal 2, @storage.client.api_requests.count
 
       assert_equal [{"part_number" => 1, "etag" => "etag1"}], @info["multipart_parts"]
+    end
+
+    it "allows overriding limits" do
+      @storage = s3(limits: { min_part_size: 5 })
+
+      assert_equal 15, @storage.patch_file("uid", StringIO.new("a" * 15), @info)
+
+      assert_equal 3, @storage.client.api_requests.count
+
+      assert_equal :upload_part, @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,            @storage.client.api_requests[0][:params][:part_number]
+      assert_equal "5",          @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal :upload_part, @storage.client.api_requests[1][:operation_name]
+      assert_equal 2,            @storage.client.api_requests[1][:params][:part_number]
+      assert_equal "5",          @storage.client.api_requests[1][:context].http_request.headers["Content-Length"]
+
+      assert_equal :upload_part, @storage.client.api_requests[2][:operation_name]
+      assert_equal 3,            @storage.client.api_requests[2][:params][:part_number]
+      assert_equal "5",          @storage.client.api_requests[2][:context].http_request.headers["Content-Length"]
     end
   end
 
