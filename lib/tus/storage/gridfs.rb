@@ -53,7 +53,7 @@ module Tus
         validate_parts!(grid_infos, part_uids)
 
         length       = grid_infos.map { |doc| doc[:length] }.reduce(0, :+)
-        content_type = Tus::Info.new(info).metadata["content_type"]
+        content_type = Tus::Info.new(info).type
 
         grid_file = create_grid_file(
           filename:     uid,
@@ -75,9 +75,6 @@ module Tus
 
         # Delete the parts after concatenation.
         files_collection.delete_many(filename: {"$in" => part_uids})
-
-        # Tus server requires us to return the size of the concatenated file.
-        length
       end
 
       # Appends data to the specified upload in a streaming fashion, and

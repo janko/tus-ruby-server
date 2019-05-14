@@ -54,9 +54,6 @@ module Tus
 
         # Delete parts after concatenation.
         delete(part_uids)
-
-        # Tus server requires us to return the size of the concatenated file.
-        file_path(uid).size
       end
 
       # Appends data to the specified upload in a streaming fashion, and

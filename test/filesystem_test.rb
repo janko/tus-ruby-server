@@ -67,14 +67,6 @@ describe Tus::Storage::Filesystem do
       assert_equal "hello world", @storage.get_file("ab").each.to_a.join
     end
 
-    it "returns size of the concatenated file" do
-      @storage.create_file("a")
-      @storage.patch_file("a", StringIO.new("hello"))
-      @storage.create_file("b")
-      @storage.patch_file("b", StringIO.new(" world"))
-      assert_equal 11, @storage.concatenate("ab", ["a", "b"])
-    end
-
     it "deletes concatenated files" do
       @storage.create_file("a")
       @storage.create_file("b")

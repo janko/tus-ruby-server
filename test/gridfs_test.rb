@@ -63,15 +63,6 @@ describe Tus::Storage::Gridfs do
       assert_equal ["hel", "lo ", "wor", "ld"], @storage.get_file("abcd").each.to_a
     end
 
-    it "returns size of the concatenated file" do
-      @storage = gridfs(chunk_size: 5)
-      @storage.create_file("a")
-      @storage.patch_file("a", StringIO.new("hello"))
-      @storage.create_file("b")
-      @storage.patch_file("b", StringIO.new(" world"))
-      assert_equal 11, @storage.concatenate("ab", ["a", "b"])
-    end
-
     it "stores content type" do
       @storage.create_file("a")
       @storage.create_file("b")

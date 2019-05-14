@@ -75,10 +75,6 @@ module Tus
         finalize_file(uid, info)
 
         delete(part_uids.flat_map { |part_uid| [object(part_uid), object("#{part_uid}.info")] })
-
-        # Tus server requires us to return the size of the concatenated file.
-        object = client.head_object(bucket: bucket.name, key: object(uid).key)
-        object.content_length
       rescue => error
         multipart_upload.abort if multipart_upload
         raise error

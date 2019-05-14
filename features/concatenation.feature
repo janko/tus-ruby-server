@@ -70,7 +70,26 @@ Feature: Concatenation
       """
     When I send a concatenation request for the created files
     Then I should see response status "400 Bad Request"
-    And I should see "One or more uploads were not partial"
+    And I should see "Upload is not partial"
+
+  Scenario: Creating final upload from unfinished uploads
+    Given a file
+      """
+      Upload-Length: 5
+      Upload-Concat: partial
+
+      hello
+      """
+    And a file
+      """
+      Upload-Length: 10
+      Upload-Concat: partial
+
+       world
+      """
+    When I send a concatenation request for the created files
+    Then I should see response status "400 Bad Request"
+    And I should see "Partial upload is not finished"
 
   Scenario: Creating final upload from non-existing uploads
     Given a file
@@ -93,7 +112,7 @@ Feature: Concatenation
       """
     And I send a concatenation request for the created files
     Then I should see response status "400 Bad Request"
-    And I should see "One or more partial uploads were not found"
+    And I should see "Partial upload not found"
 
   Scenario: Concatenation within Tus-Max-Size
     Given I've set max size to 12
@@ -137,7 +156,7 @@ Feature: Concatenation
       """
     When I send a concatenation request for the created files
     Then I should see response status "400 Bad Request"
-    And I should see "The sum of partial upload lengths exceed Tus-Max-Size"
+    And I should see "The sum of partial upload lengths exceeds Tus-Max-Size"
 
   Scenario: Invalid Upload-Concat
     When I make a POST request to "/files"

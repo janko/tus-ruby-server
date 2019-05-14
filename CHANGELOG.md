@@ -1,5 +1,13 @@
 ## HEAD
 
+* Remove superfluous `#head_object` operation from `S3#concatenate` (@janko)
+
+* Validate that partial uploads are finished on the concatenation request (@janko)
+
+* Unparallelize validating partial uploads for concatentation (@janko)
+
+* Move total length calculation for concatenation into `Tus::Server` (@janko)
+
 * Allow `Upload-Concat` and `Upload-Defer-Length` headers in CORS headers (@janko)
 
 * Always override `:content_disposition` option with the value from `:upload_options` in `S3#create_file` (@janko)

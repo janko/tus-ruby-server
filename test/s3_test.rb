@@ -293,11 +293,10 @@ describe Tus::Storage::S3 do
       @storage.client.stub_responses(:upload_part_copy, -> (context) {
         { copy_part_result: { etag: "etag#{context.params[:part_number]}" } }
       })
-      @storage.client.stub_responses(:head_object, { content_length: 10 })
 
-      assert_equal 10, @storage.concatenate("uid", ["part_uid1", "part_uid2"])
+      @storage.concatenate("uid", ["part_uid1", "part_uid2"])
 
-      assert_equal 6, @storage.client.api_requests.count
+      assert_equal 5, @storage.client.api_requests.count
 
       assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
       assert_equal "uid",                    @storage.client.api_requests[0][:params][:key]
@@ -335,10 +334,6 @@ describe Tus::Storage::S3 do
           { key: "part_uid2" }, { key: "part_uid2.info" },
         ]
       ], @storage.client.api_requests[4][:params][:delete]
-
-      assert_equal :head_object, @storage.client.api_requests[5][:operation_name]
-      assert_equal "uid",        @storage.client.api_requests[5][:params][:key]
-      assert_equal "my-bucket",  @storage.client.api_requests[5][:params][:bucket]
     end
 
     it "aborts multipart upload on runtime errors" do

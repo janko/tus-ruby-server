@@ -94,9 +94,9 @@ module Tus
           before_create(uid, info)
 
           if info.final?
-            validate_partial_uploads!(info.partial_uploads)
+            length = validate_partial_uploads!(info.partial_uploads)
 
-            length = storage.concatenate(uid, info.partial_uploads, info.to_h)
+            storage.concatenate(uid, info.partial_uploads, info.to_h)
             info["Upload-Length"] = length.to_s
             info["Upload-Offset"] = length.to_s
           else
@@ -303,50 +303,34 @@ module Tus
       end
     end
 
-    # Validates that each partial upload exists and is marked as one.
+    # Validates that each partial upload exists and is marked as one, and at the
+    # same time calculates the sum of part lengths.
     def validate_partial_uploads!(part_uids)
-      input = Queue.new
-      part_uids.each { |part_uid| input << part_uid }
-      input.close
+      length = 0
 
-      results = Queue.new
-
-      thread_count   = storage.concurrency[:concatenation] if storage.respond_to?(:concurrency)
-      thread_count ||= 10
-
-      threads = thread_count.times.map do
-        Thread.new do
-          begin
-            loop do
-              part_uid = input.pop or break
-              part_info = storage.read_info(part_uid)
-              results << Tus::Info.new(part_info)
-            end
-            nil
-          rescue => error
-            input.clear
-            error
-          end
+      part_uids.each do |part_uid|
+        begin
+          part_info = storage.read_info(part_uid)
+        rescue Tus::NotFound
+          error!(400, "Partial upload not found")
         end
+
+        part_info = Tus::Info.new(part_info)
+
+        error!(400, "Upload is not partial") unless part_info.partial?
+
+        unless part_info.length == part_info.offset
+          error!(400, "Partial upload is not finished")
+        end
+
+        length += part_info.length
       end
 
-      errors = threads.map(&:value).compact
-
-      if errors.any? { |error| error.is_a?(Tus::NotFound) }
-        error!(400, "One or more partial uploads were not found")
-      elsif errors.any?
-        fail errors.first
+      if max_size && length > max_size
+        error!(400, "The sum of partial upload lengths exceeds Tus-Max-Size")
       end
 
-      part_infos = Array.new(results.size) { results.pop } # convert Queue into an Array
-
-      unless part_infos.all?(&:partial?)
-        error!(400, "One or more uploads were not partial")
-      end
-
-      if max_size && part_infos.map(&:length).inject(0, :+) > max_size
-        error!(400, "The sum of partial upload lengths exceed Tus-Max-Size")
-      end
+      length
     end
 
     def validate_upload_checksum!(input)
