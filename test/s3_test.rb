@@ -41,192 +41,183 @@ describe Tus::Storage::S3 do
 
   describe "#create_file" do
     it "creates a multipart upload with uid as the key" do
-      @storage.client.stub_responses(:get_object, "NoSuchKey")
-      @storage.client.stub_responses(:create_multipart_upload, -> (multipart_context) {
-        @storage.client.stub_responses(:get_object, {})
-        { upload_id: "upload_id" }
-      })
+      @storage.client.stub_responses(:create_multipart_upload, { upload_id: "upload_id" })
 
       @storage.create_file("uid", info = {})
 
-      @storage.bucket.object("uid").get
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "uid",                    @storage.client.api_requests[0][:params][:key]
+
       assert_equal "upload_id", info["multipart_id"]
       assert_equal [],          info["multipart_parts"]
     end
 
     it "assigns content type from metadata" do
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        @storage.client.stub_responses(:get_object, content_type: context.params[:content_type])
-        { upload_id: "upload_id" }
-      })
+      @storage.create_file("uid", { "Upload-Metadata" => "content_type #{Base64.encode64("text/plain")}" })
 
-      @storage.create_file("uid", {"Upload-Metadata" => "content_type #{Base64.encode64("text/plain")}"})
-
-      assert_equal "text/plain", @storage.bucket.object("uid").get.content_type
+      assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "text/plain",             @storage.client.api_requests[0][:params][:content_type]
     end
 
     it "assigns content disposition from filename metadata" do
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
-        { upload_id: "upload_id" }
-      })
-
       @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
 
-      assert_equal "inline; filename=\"file.txt\"", @storage.bucket.object("uid").get.content_disposition
+      assert_equal :create_multipart_upload,        @storage.client.api_requests[0][:operation_name]
+      assert_equal "inline; filename=\"file.txt\"", @storage.client.api_requests[0][:params][:content_disposition]
     end
 
     it "escapes non-ASCII characters which aws-sdk-s3 cannot sign well" do
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
-        { upload_id: "upload_id" }
-      })
-
       @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("ē .txt")}"})
 
-      assert_equal "inline; filename=\"%C4%93 .txt\"", @storage.bucket.object("uid").get.content_disposition
+      assert_equal :create_multipart_upload,           @storage.client.api_requests[0][:operation_name]
+      assert_equal "inline; filename=\"%C4%93 .txt\"", @storage.client.api_requests[0][:params][:content_disposition]
     end
 
     it "works with content disposition in default upload options" do
-      @storage = s3(upload_options: {content_disposition: "attachment"})
+      @storage = s3(upload_options: { content_disposition: "attachment" })
 
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
-        { upload_id: "upload_id" }
-      })
       @storage.create_file("uid")
-      assert_equal "attachment", @storage.bucket.object("uid").get.content_disposition
+      assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "attachment",             @storage.client.api_requests[0][:params][:content_disposition]
 
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        @storage.client.stub_responses(:get_object, content_disposition: context.params[:content_disposition])
-        { upload_id: "upload_id" }
-      })
       @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
-      assert_equal "attachment; filename=\"file.txt\"", @storage.bucket.object("uid").get.content_disposition
+      assert_equal :create_multipart_upload,            @storage.client.api_requests[0][:operation_name]
+      assert_equal "attachment; filename=\"file.txt\"", @storage.client.api_requests[0][:params][:content_disposition]
     end
   end
 
   describe "#patch_file" do
     before do
-      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
-      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
-      @storage.create_file("uid", @info = {})
+      @info = { "multipart_id" => "upload_id", "multipart_parts" => [] }
     end
 
     it "uploads the input as a multipart part" do
-      @storage.client.stub_responses(:upload_part, -> (context) {
-        assert_equal "upload_id", context.params[:upload_id]
-        assert_equal "uid",       context.params[:key]
-        assert_equal 1,           context.params[:part_number]
-        assert_equal "content",   context.params[:body]
-
-        { etag: "etag" }
-      })
+      @storage.client.stub_responses(:upload_part, { etag: "etag" })
 
       assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
 
-      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+      assert_equal 1, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal :upload_part, @storage.client.api_requests[0][:operation_name]
+      assert_equal "upload_id",  @storage.client.api_requests[0][:params][:upload_id]
+      assert_equal "uid",        @storage.client.api_requests[0][:params][:key]
+      assert_equal 1,            @storage.client.api_requests[0][:params][:part_number]
+      assert_equal "7",          @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal [{"part_number" => 1, "etag" => "etag"}], @info["multipart_parts"]
     end
 
     it "uses the correct part number" do
-      @storage.client.stub_responses(:upload_part, -> (context) {
-        { etag: "etag#{context.params[:part_number]}" }
-      })
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+        { etag: "etag2" },
+        { etag: "etag3" },
+      ])
 
       assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
       assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
       assert_equal 7, @storage.patch_file("uid", StringIO.new("content"), @info)
 
-      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
-                        { "part_number" => 2, "etag" => "etag2" },
-                        { "part_number" => 3, "etag" => "etag3" }]
+      assert_equal 3, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal :upload_part, @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,            @storage.client.api_requests[0][:params][:part_number]
+
+      assert_equal :upload_part, @storage.client.api_requests[1][:operation_name]
+      assert_equal 2,            @storage.client.api_requests[1][:params][:part_number]
+
+      assert_equal :upload_part, @storage.client.api_requests[2][:operation_name]
+      assert_equal 3,            @storage.client.api_requests[2][:params][:part_number]
+
+      assert_equal [{ "part_number" => 1, "etag" => "etag1" },
+                    { "part_number" => 2, "etag" => "etag2" },
+                    { "part_number" => 3, "etag" => "etag3" }], @info["multipart_parts"]
     end
 
     it "uploads in batches of 5MB" do
-      input = StringIO.new([
-        "a" * 5 * 1024 * 1024,
-        "b" * 5 * 1024 * 1024,
-      ].join)
+      input = StringIO.new("a" * (10*1024*1024))
 
-      @storage.client.stub_responses(:upload_part, -> (context) {
-        part_number, body = context.params.values_at(:part_number, :body)
-
-        case part_number
-        when 1 then assert_equal "a" * 5 * 1024 * 1024, body
-        when 2 then assert_equal "b" * 5 * 1024 * 1024, body
-        end
-
-        { etag: "etag#{part_number}" }
-      })
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+        { etag: "etag2" },
+      ])
 
       assert_equal 10 * 1024 * 1024, @storage.patch_file("uid", input, @info)
 
-      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
-                        { "part_number" => 2, "etag" => "etag2" }]
+      assert_equal 2, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal :upload_part,       @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,                  @storage.client.api_requests[0][:params][:part_number]
+      assert_equal (5*1024*1024).to_s, @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal :upload_part,       @storage.client.api_requests[1][:operation_name]
+      assert_equal 2,                  @storage.client.api_requests[1][:params][:part_number]
+      assert_equal (5*1024*1024).to_s, @storage.client.api_requests[1][:context].http_request.headers["Content-Length"]
+
+      assert_equal [{ "part_number" => 1, "etag" => "etag1" },
+                    { "part_number" => 2, "etag" => "etag2" }], @info["multipart_parts"]
     end
 
     it "merges last chunk into previous if it's smaller than minimum allowed" do
-      input = StringIO.new([
-        "a" * 5 * 1024 * 1024,
-        "b" * 5 * 1024 * 1024,
-        "c",
-      ].join)
+      input = StringIO.new("a" * (10*1024*1024 + 1))
 
-      @storage.client.stub_responses(:upload_part, -> (context) {
-        part_number, body = context.params.values_at(:part_number, :body)
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+        { etag: "etag2" },
+      ])
 
-        case part_number
-        when 1 then assert_equal "a" * 5 * 1024 * 1024,       body
-        when 2 then assert_equal "b" * 5 * 1024 * 1024 + "c", body
-        end
+      assert_equal 10*1024*1024 + 1, @storage.patch_file("uid", input, @info)
 
-        { etag: "etag#{part_number}" }
-      })
+      assert_equal 2, @storage.client.api_requests.count
 
-      assert_equal 10 * 1024 * 1024 + 1, @storage.patch_file("uid", input, @info)
+      assert_equal :upload_part,       @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,                  @storage.client.api_requests[0][:params][:part_number]
+      assert_equal (5*1024*1024).to_s, @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
 
-      expected_parts = [{ "part_number" => 1, "etag" => "etag1" },
-                        { "part_number" => 2, "etag" => "etag2" }]
+      assert_equal :upload_part,           @storage.client.api_requests[1][:operation_name]
+      assert_equal 2,                      @storage.client.api_requests[1][:params][:part_number]
+      assert_equal (5*1024*1024 + 1).to_s, @storage.client.api_requests[1][:context].http_request.headers["Content-Length"]
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal [{ "part_number" => 1, "etag" => "etag1" },
+                    { "part_number" => 2, "etag" => "etag2" }], @info["multipart_parts"]
     end
 
     it "doesn't accept chunk smaller than 5MB if it's not the last chunk" do
-      input = StringIO.new("a" * 4 * 1024 * 1024)
+      input = StringIO.new("a" * (4*1024*1024))
 
       @info.merge!(
         "Upload-Offset" => 0.to_s,
-        "Upload-Length" => (10 * 1024 * 1024).to_s,
+        "Upload-Length" => (10*1024*1024).to_s,
       )
 
-      @storage.client.stub_responses(:upload_part, StandardError)
-
       assert_equal 0, @storage.patch_file("uid", input, @info)
+
+      assert_equal 0, @storage.client.api_requests.count
 
       assert_equal [], @info["multipart_parts"]
     end
 
     it "accepts chunk smaller than 5MB if it's the last chunk" do
-      input = StringIO.new("a" * 4 * 1024 * 1024)
+      input = StringIO.new("a" * (4*1024*1024))
 
       @info.merge!(
-        "Upload-Offset" => (6 * 1024 * 1024).to_s,
-        "Upload-Length" => (10 * 1024 * 1024).to_s,
+        "Upload-Offset" => (6*1024*1024).to_s,
+        "Upload-Length" => (10*1024*1024).to_s,
       )
 
       @storage.client.stub_responses(:upload_part, { etag: "etag" })
 
       assert_equal 4 * 1024 * 1024, @storage.patch_file("uid", input, @info)
 
-      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+      assert_equal 1, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal :upload_part,       @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,                  @storage.client.api_requests[0][:params][:part_number]
+      assert_equal (4*1024*1024).to_s, @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal [{"part_number" => 1, "etag" => "etag"}], @info["multipart_parts"]
     end
 
     it "works for non-rewindable inputs" do
@@ -239,41 +230,36 @@ describe Tus::Storage::S3 do
 
       assert_equal 7, @storage.patch_file("uid", read_pipe, @info)
 
-      expected_parts = [{"part_number" => 1, "etag" => "etag"}]
+      assert_equal 1, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal :upload_part, @storage.client.api_requests[0][:operation_name]
+      assert_equal 1,            @storage.client.api_requests[0][:params][:part_number]
+      assert_equal "7",          @storage.client.api_requests[0][:context].http_request.headers["Content-Length"]
+
+      assert_equal [{"part_number" => 1, "etag" => "etag"}], @info["multipart_parts"]
     end
 
-    it "recovers from networking errors" do
-      input = StringIO.new([
-        "a" * 5 * 1024 * 1024,
-        "b" * 5 * 1024 * 1024
-      ].join)
+    it "recovers from network errors" do
+      input = StringIO.new("a" * (10*1024*1024))
 
-      @storage.client.stub_responses(:upload_part, -> (context) {
-        part_number, body = context.params.values_at(:part_number, :body)
-
-        case part_number
-        when 1 then { etag: "etag" }
-        when 2 then Seahorse::Client::NetworkingError.new(Timeout::Error.new("timed out"))
-        end
-      })
+      @storage.client.stub_responses(:upload_part, [
+        { etag: "etag1" },
+        Seahorse::Client::NetworkingError.new(Timeout::Error.new("timed out")),
+      ])
 
       capture_io do # silence warnings
         assert_equal 5 * 1024 * 1024, @storage.patch_file("uid", input, @info)
       end
 
-      expected_parts = [{ "part_number" => 1, "etag" => "etag" }]
+      assert_equal 2, @storage.client.api_requests.count
 
-      assert_equal expected_parts, @info["multipart_parts"]
+      assert_equal [{"part_number" => 1, "etag" => "etag1"}], @info["multipart_parts"]
     end
   end
 
   describe "#finalize_file" do
     before do
-      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
-      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
-      @storage.create_file("uid", @info = {})
+      @info = { "multipart_id" => "upload_id", "multipart_parts" => [] }
     end
 
     it "completes the multipart upload" do
@@ -281,89 +267,111 @@ describe Tus::Storage::S3 do
         { etag: "etag1" },
         { etag: "etag2" },
       ])
-      @storage.client.stub_responses(:complete_multipart_upload, -> (context) {
-        assert_equal "uid",       context.params[:key]
-        assert_equal "upload_id", context.params[:upload_id]
-
-        payload = { parts: [{ part_number: 1, etag: "etag1" },
-                            { part_number: 2, etag: "etag2" }] }
-        assert_equal payload, context.params[:multipart_upload]
-
-        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
-
-        {}
-      })
 
       @storage.patch_file("uid", StringIO.new("content"), @info)
       @storage.patch_file("uid", StringIO.new("content"), @info)
       @storage.finalize_file("uid", @info)
 
-      assert_equal [], @storage.bucket.multipart_uploads.to_a
+      assert_equal 3, @storage.client.api_requests.count
+
+      assert_equal :complete_multipart_upload, @storage.client.api_requests[2][:operation_name]
+      assert_equal "uid",                      @storage.client.api_requests[2][:params][:key]
+      assert_equal "upload_id",                @storage.client.api_requests[2][:params][:upload_id]
+      assert_equal Hash[
+        parts: [
+          { part_number: 1, etag: "etag1" },
+          { part_number: 2, etag: "etag2" },
+        ]
+      ], @storage.client.api_requests[2][:params][:multipart_upload]
+
       refute @info.key?("multipart_id")
       refute @info.key?("multipart_parts")
     end
   end
 
   describe "#concatenate" do
-    it "copies parts into a new multipart upload" do
-      @storage.client.stub_responses(:create_multipart_upload, -> (context) {
-        assert_equal "uid", context.params[:key]
-        { upload_id: "upload_id" }
-      })
+    it "copies parts into a new multipart upload and deletes the source parts" do
+      @storage.client.stub_responses(:create_multipart_upload, { upload_id: "upload_id" })
       @storage.client.stub_responses(:upload_part_copy, -> (context) {
-        assert_equal "uid",                       context.params[:key]
-        assert_equal "upload_id",                 context.params[:upload_id]
-        assert_includes [1, 2],                   context.params[:part_number]
-        assert_match %r{my-bucket/part_uid(1|2)}, context.params[:copy_source]
-
         { copy_part_result: { etag: "etag#{context.params[:part_number]}" } }
       })
-      @storage.client.stub_responses(:complete_multipart_upload, -> (context) {
-        assert_equal "uid",       context.params[:key]
-        assert_equal "upload_id", context.params[:upload_id]
+      @storage.client.stub_responses(:head_object, { content_length: 10 })
 
-        payload = { parts: [{ part_number: 1, etag: "etag1" },
-                            { part_number: 2, etag: "etag2" }] }
+      assert_equal 10, @storage.concatenate("uid", ["part_uid1", "part_uid2"])
 
-        assert_equal payload, context.params[:multipart_upload]
-      })
-      @storage.client.stub_responses(:head_object, -> (context) {
-        assert_equal "uid", context.params[:key]
-        { content_length: 10 }
-      })
+      assert_equal 6, @storage.client.api_requests.count
 
-      content_length = @storage.concatenate("uid", ["part_uid1", "part_uid2"], {})
+      assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "uid",                    @storage.client.api_requests[0][:params][:key]
 
-      assert_equal 10, content_length
+      # this is parallelized, so we don't know the order
+      upload_part_copy_requests = @storage.client.api_requests[1..2]
+        .sort_by { |request| request[:params][:part_number] }
+
+      assert_equal :upload_part_copy,     upload_part_copy_requests[0][:operation_name]
+      assert_equal "uid",                 upload_part_copy_requests[0][:params][:key]
+      assert_equal "upload_id",           upload_part_copy_requests[0][:params][:upload_id]
+      assert_equal 1,                     upload_part_copy_requests[0][:params][:part_number]
+      assert_equal "my-bucket/part_uid1", upload_part_copy_requests[0][:params][:copy_source]
+
+      assert_equal :upload_part_copy,     upload_part_copy_requests[1][:operation_name]
+      assert_equal "uid",                 upload_part_copy_requests[1][:params][:key]
+      assert_equal "upload_id",           upload_part_copy_requests[1][:params][:upload_id]
+      assert_equal 2,                     upload_part_copy_requests[1][:params][:part_number]
+      assert_equal "my-bucket/part_uid2", upload_part_copy_requests[1][:params][:copy_source]
+
+      assert_equal :complete_multipart_upload, @storage.client.api_requests[3][:operation_name]
+      assert_equal "uid",                      @storage.client.api_requests[3][:params][:key]
+      assert_equal "upload_id",                @storage.client.api_requests[3][:params][:upload_id]
+      assert_equal Hash[
+        parts: [
+          { part_number: 1, etag: "etag1" },
+          { part_number: 2, etag: "etag2" },
+        ]
+      ], @storage.client.api_requests[3][:params][:multipart_upload]
+
+      assert_equal :delete_objects, @storage.client.api_requests[4][:operation_name]
+      assert_equal Hash[
+        objects: [
+          { key: "part_uid1" }, { key: "part_uid1.info" },
+          { key: "part_uid2" }, { key: "part_uid2.info" },
+        ]
+      ], @storage.client.api_requests[4][:params][:delete]
+
+      assert_equal :head_object, @storage.client.api_requests[5][:operation_name]
+      assert_equal "uid",        @storage.client.api_requests[5][:params][:key]
+      assert_equal "my-bucket",  @storage.client.api_requests[5][:params][:bucket]
     end
 
-    it "propagates errors and aborts multipart upload" do
+    it "aborts multipart upload on runtime errors" do
       Thread.report_on_exception = false if Thread.respond_to?(:report_on_exception=)
-      @storage.client.stub_responses(:create_multipart_upload, "TimeoutError")
-      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
 
-      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id", key: "uid")
-      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
-      @storage.client.stub_responses(:upload_part_copy, ["TimeoutError", { copy_part_result: { etag: "etag" } }])
-      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
-        assert_equal "upload_id", context.params[:upload_id]
-        assert_equal "uid",       context.params[:key]
-        @storage.client.stub_responses(:list_multipart_uploads, uploads: [])
-      })
+      @storage.client.stub_responses(:create_multipart_upload, { upload_id: "upload_id", key: "uid" })
+      @storage.client.stub_responses(:upload_part_copy, ["TimeoutError"])
       assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"], {}) }
-      assert_equal [], @storage.bucket.multipart_uploads.to_a
+      assert_equal :abort_multipart_upload, @storage.client.api_requests[-1][:operation_name]
+      assert_equal "uid",                   @storage.client.api_requests[-1][:params][:key]
+      assert_equal "upload_id",             @storage.client.api_requests[-1][:params][:upload_id]
+
+      @storage.client.stub_responses(:create_multipart_upload, "TimeoutError")
+      assert_raises(Aws::S3::Errors::TimeoutError) { @storage.concatenate("uid", ["part_uid1", "part_uid2"]) }
+
       Thread.report_on_exception = true if Thread.respond_to?(:report_on_exception=)
     end
   end
 
   describe "#read_info" do
     it "retrieves the info object content" do
-      @storage.client.stub_responses(:get_object, -> (context) {
-        assert_equal "uid.info", context.params[:key]
-        { body: StringIO.new('{"Key":"Value"}') }
+      @storage.client.stub_responses(:get_object, {
+        body: StringIO.new('{"Key":"Value"}'),
       })
 
       assert_equal Hash["Key" => "Value"], @storage.read_info("uid")
+
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :get_object, @storage.client.api_requests[0][:operation_name]
+      assert_equal "uid.info",  @storage.client.api_requests[0][:params][:key]
     end
 
     it "raises Tus::NotFound when object is missing" do
@@ -375,40 +383,42 @@ describe Tus::Storage::S3 do
 
   describe "#update_info" do
     it "creates an object which stores info" do
-      @storage.client.stub_responses(:put_object, -> (context) {
-        assert_equal "uid.info", context.params[:key]
-        @storage.client.stub_responses(:get_object, body: StringIO.new(context.params[:body]))
-      })
+      @storage.update_info("uid", { "Key" => "Value" })
 
-      @storage.update_info("uid", {"Key" => "Value"})
+      assert_equal 1, @storage.client.api_requests.count
 
-      assert_equal '{"Key":"Value"}', @storage.bucket.object("uid.info").get.body.string
+      assert_equal :put_object,       @storage.client.api_requests[0][:operation_name]
+      assert_equal "uid.info",        @storage.client.api_requests[0][:params][:key]
+      assert_equal '{"Key":"Value"}', @storage.client.api_requests[0][:params][:body]
     end
   end
 
   describe "#get_file" do
     it "retrieves a response object which streams content" do
-      @storage.client.stub_responses(:get_object, -> (context) {
-        assert_equal "uid", context.params[:key]
-        { body: "content" }
-      })
+      @storage.client.stub_responses(:get_object, { body: "content" })
 
       response = @storage.get_file("uid")
 
       assert_equal ["content"], response.each.to_a
       response.close # responds to close
+
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :get_object, @storage.client.api_requests[0][:operation_name]
+      assert_equal "uid",       @storage.client.api_requests[0][:params][:key]
     end
 
     it "accepts byte ranges" do
-      @storage.client.stub_responses(:get_object, -> (context) {
-        from, to = context.params.fetch(:range)[/\d+-\d+/].split("-").map(&:to_i)
-
-        { body: "content"[from..to] }
-      })
+      @storage.client.stub_responses(:get_object, { body: "nte" })
 
       response = @storage.get_file("uid", range: 2..4)
 
       assert_equal ["nte"], response.each.to_a
+
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :get_object, @storage.client.api_requests[0][:operation_name]
+      assert_equal "bytes=2-4", @storage.client.api_requests[0][:params][:range]
     end
 
     it "works for empty files" do
@@ -441,45 +451,30 @@ describe Tus::Storage::S3 do
   end
 
   describe "#delete_file" do
-    before do
-      @storage.client.stub_responses(:create_multipart_upload, upload_id: "upload_id")
-      @storage.client.stub_responses(:list_multipart_uploads, uploads: [{ upload_id: "upload_id", key: "uid" }])
-      @storage.create_file("uid", @info = {})
-    end
-
     it "deletes multipart upload and info object if upload is not finished" do
-      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
-        assert_equal "upload_id", context.params[:upload_id]
-        assert_equal "uid",       context.params[:key]
-        @storage.client.stub_responses(:list_multipart_uploads, [])
-      })
-      @storage.client.stub_responses(:delete_objects, -> (context) {
-        assert_equal [{key: "uid.info"}], context.params[:delete][:objects]
-        @storage.client.stub_responses(:get_object, "NoSuchKey")
-      })
+      @storage.delete_file("uid", { "multipart_id" => "upload_id" })
 
-      @storage.delete_file("uid", @info)
+      assert_equal 2, @storage.client.api_requests.count
 
-      assert_equal [], @storage.bucket.multipart_uploads.to_a
-      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid.info").get }
+      assert_equal :abort_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "upload_id",             @storage.client.api_requests[0][:params][:upload_id]
+      assert_equal "uid",                   @storage.client.api_requests[0][:params][:key]
+
+      assert_equal :delete_objects, @storage.client.api_requests[1][:operation_name]
+      assert_equal Hash[
+        objects: [{ key: "uid.info" }]
+      ], @storage.client.api_requests[1][:params][:delete]
     end
 
     it "deletes content object and info object if upload is finished" do
-      @storage.finalize_file("uid", @info)
-      @storage.client.stub_responses(:delete_objects, -> (context) {
-        assert_equal [{key: "uid"}, {key: "uid.info"}], context.params[:delete][:objects]
-        @storage.client.stub_responses(:get_object, "NoSuchKey")
-      })
-
-      @storage.delete_file("uid", @info)
-
-      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid").get }
-      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid.info").get }
-    end
-
-    it "doesn't raise error when multipart upload doesn't exist" do
-      @storage.client.stub_responses(:abort_multipart_upload, "NoSuchUpload")
       @storage.delete_file("uid")
+
+      assert_equal 1, @storage.client.api_requests.count
+
+      assert_equal :delete_objects, @storage.client.api_requests[0][:operation_name]
+      assert_equal Hash[
+        objects: [{ key: "uid" }, { key: "uid.info" }]
+      ], @storage.client.api_requests[0][:params][:delete]
     end
   end
 
@@ -494,15 +489,13 @@ describe Tus::Storage::S3 do
         { key: "uid2", last_modified: @expiration_date },
         { key: "uid3", last_modified: @expiration_date + 1 },
       ])
-      @storage.client.stub_responses(:delete_objects, -> (context) {
-        assert_equal [{key: "uid1"}, {key: "uid2"}], context.params[:delete][:objects]
-        @storage.client.stub_responses(:get_object, "NoSuchKey")
-      })
 
       @storage.expire_files(@expiration_date)
 
-      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid1").get }
-      assert_raises(Aws::S3::Errors::NoSuchKey) { @storage.bucket.object("uid2").get }
+      assert_equal :delete_objects, @storage.client.api_requests[1][:operation_name]
+      assert_equal Hash[
+        objects: [{ key: "uid1" }, { key: "uid2" }]
+      ], @storage.client.api_requests[1][:params][:delete]
     end
 
     it "deletes multipart uploads which are past the expiration date" do
@@ -512,29 +505,39 @@ describe Tus::Storage::S3 do
         { upload_id: "upload_id3", key: "uid3", initiated: @expiration_date - 1},
         { upload_id: "upload_id4", key: "uid4", initiated: @expiration_date - 1},
       ])
-      deleted_multipart_uploads = []
-      @storage.client.stub_responses(:list_parts, -> (context) {
-        case context.params[:upload_id]
-        when *deleted_multipart_uploads
-          { parts: [] }
-        when "upload_id1"
-          { parts: [] }
-        when "upload_id2"
-          { parts: [] }
-        when "upload_id3"
-          { parts: [{ part_number: 1, last_modified: @expiration_date - 1 }] }
-        when "upload_id4"
-          { parts: [{ part_number: 1, last_modified: @expiration_date - 1 },
-                    { part_number: 2, last_modified: @expiration_date + 1 }] }
-        end
-      })
-      @storage.client.stub_responses(:abort_multipart_upload, -> (context) {
-        deleted_multipart_uploads << context.params[:upload_id]
-      })
+      @storage.client.stub_responses(:list_parts, [
+        { parts: [] },
+        { parts: [{ part_number: 1, last_modified: @expiration_date - 1 }] },
+        { parts: [{ part_number: 1, last_modified: @expiration_date - 1 },
+                  { part_number: 2, last_modified: @expiration_date + 1 }] },
+      ])
 
       @storage.expire_files(@expiration_date)
 
-      assert_equal ["upload_id2", "upload_id3"], deleted_multipart_uploads
+      assert_equal 7, @storage.client.api_requests.count
+
+      assert_equal :list_objects,           @storage.client.api_requests[0][:operation_name]
+      assert_equal :list_multipart_uploads, @storage.client.api_requests[1][:operation_name]
+
+      assert_equal :list_parts,  @storage.client.api_requests[2][:operation_name]
+      assert_equal "upload_id2", @storage.client.api_requests[2][:params][:upload_id]
+      assert_equal "uid2",       @storage.client.api_requests[2][:params][:key]
+
+      assert_equal :list_parts,  @storage.client.api_requests[3][:operation_name]
+      assert_equal "upload_id3", @storage.client.api_requests[3][:params][:upload_id]
+      assert_equal "uid3",       @storage.client.api_requests[3][:params][:key]
+
+      assert_equal :list_parts,  @storage.client.api_requests[4][:operation_name]
+      assert_equal "upload_id4", @storage.client.api_requests[4][:params][:upload_id]
+      assert_equal "uid4",       @storage.client.api_requests[4][:params][:key]
+
+      assert_equal :abort_multipart_upload, @storage.client.api_requests[5][:operation_name]
+      assert_equal "upload_id2",            @storage.client.api_requests[5][:params][:upload_id]
+      assert_equal "uid2",                  @storage.client.api_requests[5][:params][:key]
+
+      assert_equal :abort_multipart_upload, @storage.client.api_requests[6][:operation_name]
+      assert_equal "upload_id3",            @storage.client.api_requests[6][:params][:upload_id]
+      assert_equal "uid3",                  @storage.client.api_requests[6][:params][:key]
     end
 
     it "takes :prefix into account" do
@@ -546,10 +549,14 @@ describe Tus::Storage::S3 do
 
       @storage.expire_files(@expiration_date)
 
-      assert_equal 5, @storage.client.api_requests.count
+      assert_equal 4, @storage.client.api_requests.count
 
       assert_equal :list_objects,           @storage.client.api_requests[0][:operation_name]
       assert_equal "prefix",                @storage.client.api_requests[0][:params][:prefix]
+
+      assert_equal :list_multipart_uploads, @storage.client.api_requests[1][:operation_name]
+
+      assert_equal :list_parts, @storage.client.api_requests[2][:operation_name]
 
       assert_equal :abort_multipart_upload, @storage.client.api_requests[3][:operation_name]
       assert_equal "upload_id1",            @storage.client.api_requests[3][:params][:upload_id]

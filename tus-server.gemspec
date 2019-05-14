@@ -22,4 +22,5 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency "rack-test_app"
   gem.add_development_dependency "cucumber", "~> 3.1"
   gem.add_development_dependency "aws-sdk-s3", "~> 1.2"
+  gem.add_development_dependency "aws-sdk-core", "~> 3.23"
 end

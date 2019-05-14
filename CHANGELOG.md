@@ -1,5 +1,7 @@
 ## HEAD
 
+* Remove checks whether multipart upload was successfully aborted in S3 storage (@janko)
+
 * Don't return any `Content-Type` when type is not specified in metadata (@janko)
 
 * Add `ETag` header to download endpoint to prevent `Rack::ETag` buffering file content (@janko)

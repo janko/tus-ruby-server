@@ -86,7 +86,7 @@ module Tus
         object = client.head_object(bucket: bucket.name, key: object(uid).key)
         object.content_length
       rescue => error
-        abort_multipart_upload(multipart_upload) if multipart_upload
+        multipart_upload.abort if multipart_upload
         raise error
       end
 
@@ -197,7 +197,7 @@ module Tus
       def delete_file(uid, info = {})
         if info["multipart_id"]
           multipart_upload = object(uid).multipart_upload(info["multipart_id"])
-          abort_multipart_upload(multipart_upload)
+          multipart_upload.abort
 
           delete [object("#{uid}.info")]
         else
@@ -209,22 +209,17 @@ module Tus
       # multipart uploads still in progress, it checks the upload date of the
       # last multipart part.
       def expire_files(expiration_date)
-        old_objects = bucket.objects(prefix: @prefix).select do |object|
-          object.last_modified <= expiration_date
-        end
+        delete bucket.objects(prefix: @prefix)
+          .select { |object| object.last_modified <= expiration_date }
 
-        delete(old_objects)
-
-        bucket.multipart_uploads.each do |multipart_upload|
-          next if @prefix && !multipart_upload.key.start_with?(@prefix)
-          # no need to check multipart uploads initiated before expiration date
-          next if multipart_upload.initiated > expiration_date
-
-          most_recent_part = multipart_upload.parts.sort_by(&:last_modified).last
-          if most_recent_part.nil? || most_recent_part.last_modified <= expiration_date
-            abort_multipart_upload(multipart_upload)
-          end
-        end
+        bucket.multipart_uploads
+          .select { |multipart_upload| multipart_upload.key.start_with?(prefix.to_s) }
+          .select { |multipart_upload| multipart_upload.initiated <= expiration_date }
+          .select { |multipart_upload|
+            last_modified = multipart_upload.parts.map(&:last_modified).max
+            last_modified.nil? || last_modified <= expiration_date
+          }
+          .each(&:abort)
       end
 
       private
@@ -247,18 +242,6 @@ module Tus
           delete_params = { objects: objects_batch.map { |object| { key: object.key } } }
           bucket.delete_objects(delete: delete_params)
         end
-      end
-
-      # In order to ensure the multipart upload was successfully aborted,
-      # we need to check whether all parts have been deleted, and retry
-      # the abort if the list is nonempty.
-      def abort_multipart_upload(multipart_upload)
-        loop do
-          multipart_upload.abort
-          break unless multipart_upload.parts.any?
-        end
-      rescue Aws::S3::Errors::NoSuchUpload
-        # multipart upload was successfully aborted or doesn't exist
       end
 
       # Creates multipart parts for the specified multipart upload by copying
