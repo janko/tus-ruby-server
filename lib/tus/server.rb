@@ -185,21 +185,19 @@ module Tus
         r.get do
           validate_upload_finished!(info)
 
-          headers = download_headers(uid, info)
-
           if redirect_download
             redirect_url = instance_exec(uid, info.to_h,
-              content_type:        headers.fetch(:content_type),
-              content_disposition: headers.fetch(:content_disposition),
+              content_type:        info.type,
+              content_disposition: ContentDisposition.(disposition: opts[:disposition], filename: info.name),
               &redirect_download)
 
             r.redirect redirect_url
           else
             range = handle_range_request!(info.length)
 
-            response.headers["Content-Disposition"] = headers.fetch(:content_disposition)
-            response.headers["Content-Type"]        = headers.fetch(:content_type) if headers[:content_type]
-            response.headers["ETag"]                = headers.fetch(:etag)
+            response.headers["Content-Disposition"] = ContentDisposition.(disposition: opts[:disposition], filename: info.name)
+            response.headers["Content-Type"]        = info.type if info.type
+            response.headers["ETag"]                = %(W/"#{uid}")
 
             body = storage.get_file(uid, info.to_h, range: range)
 
@@ -390,19 +388,6 @@ module Tus
       response.headers["Content-Length"] = range.size.to_s
 
       range
-    end
-
-    def download_headers(uid, info)
-      metadata = info.metadata
-
-      name = metadata["name"] || metadata["filename"]
-      type = metadata["type"] || metadata["content_type"]
-
-      {
-        content_disposition: ContentDisposition.(disposition: opts[:disposition], filename: name),
-        content_type:        type,
-        etag:                %(W/"#{uid}"),
-      }
     end
 
     def redirect_download

@@ -47,6 +47,14 @@ module Tus
       parse_metadata(@hash["Upload-Metadata"])
     end
 
+    def name
+      metadata["name"] || metadata["filename"]
+    end
+
+    def type
+      metadata["type"] || metadata["content_type"]
+    end
+
     def expires
       Time.parse(@hash["Upload-Expires"])
     end

@@ -3,6 +3,7 @@
 gem "aws-sdk-s3", "~> 1.2"
 
 require "aws-sdk-s3"
+require "content_disposition"
 
 require "tus/info"
 require "tus/response"
@@ -41,17 +42,10 @@ module Tus
       def create_file(uid, info = {})
         tus_info = Tus::Info.new(info)
 
-        options = upload_options.dup
-        options[:content_type] = tus_info.metadata["content_type"]
-
-        if filename = tus_info.metadata["filename"]
-          # Aws-sdk-s3 doesn't sign non-ASCII characters correctly, and browsers
-          # will automatically URI-decode filenames.
-          filename = CGI.escape(filename).gsub("+", " ")
-
-          options[:content_disposition] ||= "inline"
-          options[:content_disposition]  += "; filename=\"#{filename}\""
-        end
+        options = {}
+        options[:content_type] = tus_info.type if tus_info.type
+        options[:content_disposition] = ContentDisposition.inline(tus_info.name) if tus_info.name
+        options.merge!(upload_options)
 
         multipart_upload = object(uid).initiate_multipart_upload(options)
 

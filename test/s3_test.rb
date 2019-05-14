@@ -1,5 +1,6 @@
 require "test_helper"
 require "tus/storage/s3"
+require "content_disposition"
 
 require "base64"
 require "stringio"
@@ -55,36 +56,33 @@ describe Tus::Storage::S3 do
     end
 
     it "assigns content type from metadata" do
-      @storage.create_file("uid", { "Upload-Metadata" => "content_type #{Base64.encode64("text/plain")}" })
+      @storage.create_file("uid", { "Upload-Metadata" => "type #{Base64.encode64("text/plain")}" })
 
       assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
       assert_equal "text/plain",             @storage.client.api_requests[0][:params][:content_type]
     end
 
-    it "assigns content disposition from filename metadata" do
-      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
+    it "assigns content disposition from metadata" do
+      @storage.create_file("uid", { "Upload-Metadata" => "name #{Base64.encode64("file.txt")}" })
 
-      assert_equal :create_multipart_upload,        @storage.client.api_requests[0][:operation_name]
-      assert_equal "inline; filename=\"file.txt\"", @storage.client.api_requests[0][:params][:content_disposition]
+      assert_equal :create_multipart_upload,              @storage.client.api_requests[0][:operation_name]
+      assert_equal ContentDisposition.inline("file.txt"), @storage.client.api_requests[0][:params][:content_disposition]
     end
 
-    it "escapes non-ASCII characters which aws-sdk-s3 cannot sign well" do
-      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("ē .txt")}"})
+    it "applies :upload_options" do
+      @storage = s3(upload_options: {
+        content_type:        "foo/bar",
+        content_disposition: "attachment",
+      })
 
-      assert_equal :create_multipart_upload,           @storage.client.api_requests[0][:operation_name]
-      assert_equal "inline; filename=\"%C4%93 .txt\"", @storage.client.api_requests[0][:params][:content_disposition]
-    end
+      @storage.create_file("uid", { "Upload-Metadata" => [
+        "type #{Base64.encode64("text/plain")}",
+        "name #{Base64.encode64("file.txt")}",
+      ].join(",") })
 
-    it "works with content disposition in default upload options" do
-      @storage = s3(upload_options: { content_disposition: "attachment" })
-
-      @storage.create_file("uid")
       assert_equal :create_multipart_upload, @storage.client.api_requests[0][:operation_name]
+      assert_equal "foo/bar",                @storage.client.api_requests[0][:params][:content_type]
       assert_equal "attachment",             @storage.client.api_requests[0][:params][:content_disposition]
-
-      @storage.create_file("uid", {"Upload-Metadata" => "filename #{Base64.encode64("file.txt")}"})
-      assert_equal :create_multipart_upload,            @storage.client.api_requests[0][:operation_name]
-      assert_equal "attachment; filename=\"file.txt\"", @storage.client.api_requests[0][:params][:content_disposition]
     end
   end
 

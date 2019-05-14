@@ -1,5 +1,11 @@
 ## HEAD
 
+* Always override `:content_disposition` option with the value from `:upload_options` in `S3#create_file` (@janko)
+
+* Apply `name`/`type` metadata to `:content_type`/`:content_disposition` options in `S3#create_file` (@janko)
+
+* Use `content_disposition` gem for `:content_disposition` option in `S3#create_file` (@janko)
+
 * Remove checks whether multipart upload was successfully aborted in S3 storage (@janko)
 
 * Don't return any `Content-Type` when type is not specified in metadata (@janko)
