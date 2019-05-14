@@ -1,4 +1,4 @@
-## HEAD
+## 2.3.0 (2019-05-14)
 
 * Allow uploading files larger than 50 GB to S3 storage by scaling the part size according to upload length (@janko)
 
