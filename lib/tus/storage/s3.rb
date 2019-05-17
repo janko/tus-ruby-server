@@ -21,7 +21,7 @@ module Tus
       MAX_MULTIPART_PARTS = 10_000
       MAX_OBJECT_SIZE     = 5 * 1024 * 1024 * 1024 * 1024
 
-      attr_reader :client, :bucket, :prefix, :upload_options, :limits
+      attr_reader :bucket, :prefix, :upload_options, :limits
 
       # Initializes an aws-sdk-s3 client with the given credentials.
       def initialize(bucket:, prefix: nil, upload_options: {}, limits: {}, concurrency: {}, thread_count: nil, **client_options)
@@ -33,10 +33,7 @@ module Tus
           warn "[Tus-Ruby-Server] :concurrency option is obsolete and will be removed in the next major version"
         end
 
-        resource = Aws::S3::Resource.new(**client_options)
-
-        @client         = resource.client
-        @bucket         = resource.bucket(bucket)
+        @bucket         = Aws::S3::Bucket.new(name: bucket, **client_options)
         @prefix         = prefix
         @upload_options = upload_options
         @limits         = limits
@@ -84,9 +81,9 @@ module Tus
         finalize_file(uid, info)
 
         delete(part_uids.flat_map { |part_uid| [object(part_uid), object("#{part_uid}.info")] })
-      rescue => error
-        multipart_upload.abort if multipart_upload
-        raise error
+      rescue
+        multipart_upload&.abort
+        raise
       end
 
       # Appends data to the specified upload in a streaming fashion, and returns
@@ -215,11 +212,12 @@ module Tus
         bucket.multipart_uploads
           .select { |multipart_upload| multipart_upload.key.start_with?(prefix.to_s) }
           .select { |multipart_upload| multipart_upload.initiated <= expiration_date }
-          .select { |multipart_upload|
-            last_modified = multipart_upload.parts.map(&:last_modified).max
-            last_modified.nil? || last_modified <= expiration_date
-          }
+          .select { |multipart_upload| multipart_upload.parts.all?{|p| p.last_modified <= expiration_date} }
           .each(&:abort)
+      end
+
+      def client
+        bucket.client
       end
 
       private
