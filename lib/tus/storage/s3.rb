@@ -21,15 +21,16 @@ module Tus
       MAX_MULTIPART_PARTS = 10_000
       MAX_OBJECT_SIZE     = 5 * 1024 * 1024 * 1024 * 1024
 
-      attr_reader :client, :bucket, :prefix, :upload_options, :limits, :concurrency
+      attr_reader :client, :bucket, :prefix, :upload_options, :limits
 
       # Initializes an aws-sdk-s3 client with the given credentials.
       def initialize(bucket:, prefix: nil, upload_options: {}, limits: {}, concurrency: {}, thread_count: nil, **client_options)
         fail ArgumentError, "the :bucket option was nil" unless bucket
 
         if thread_count
-          warn "[Tus-Ruby-Server] :thread_count is deprecated and will be removed in the next major version, use :concurrency instead, e.g `concurrency: { concatenation: 20 }`"
-          concurrency[:concatenation] = thread_count
+          warn "[Tus-Ruby-Server] :thread_count option is obsolete and will be removed in the next major version"
+        elsif concurrency.any?
+          warn "[Tus-Ruby-Server] :concurrency option is obsolete and will be removed in the next major version"
         end
 
         resource = Aws::S3::Resource.new(**client_options)
@@ -39,7 +40,6 @@ module Tus
         @prefix         = prefix
         @upload_options = upload_options
         @limits         = limits
-        @concurrency    = concurrency
       end
 
       # Initiates multipart upload for the given upload, and stores its
@@ -262,64 +262,28 @@ module Tus
       end
 
       # Creates multipart parts for the specified multipart upload by copying
-      # given objects into them. It uses a queue and a fixed-size thread pool
-      # which consumes that queue.
+      # given objects into them.
       def copy_parts(objects, multipart_upload)
-        parts   = compute_parts(objects, multipart_upload)
-        input   = Queue.new
-        results = Queue.new
-
-        parts.each { |part| input << part }
-        input.close
-
-        thread_count = concurrency[:concatenation] || 10
-        threads = thread_count.times.map { copy_part_thread(input, results) }
-
-        errors = threads.map(&:value).compact
-        fail errors.first if errors.any?
-
-        part_results = Array.new(results.size) { results.pop } # convert Queue into an Array
-        part_results.sort_by { |part| part.fetch("part_number") }
-      end
-
-      # Computes data required for copying objects into new multipart parts.
-      def compute_parts(objects, multipart_upload)
-        objects.map.with_index do |object, idx|
-          {
-            bucket:      multipart_upload.bucket_name,
-            key:         multipart_upload.object_key,
-            upload_id:   multipart_upload.id,
-            copy_source: [object.bucket_name, object.key].join("/"),
-            part_number: idx + 1,
-          }
+        threads = objects.map.with_index do |object, idx|
+          Thread.new { copy_part(object, idx + 1, multipart_upload) }
         end
-      end
 
-      # Consumes the queue for new multipart part information and issues the
-      # copy requests.
-      def copy_part_thread(input, results)
-        Thread.new do
-          begin
-            loop do
-              part = input.pop or break
-              part_result = copy_part(part)
-              results << part_result
-            end
-            nil
-          rescue => error
-            input.clear # clear other work
-            error
-          end
-        end
+        threads.map(&:value)
       end
 
       # Creates a new multipart part by copying the object specified in the
       # given data. Returns part number and ETag that will be required later
       # for completing the multipart upload.
-      def copy_part(part)
-        response = client.upload_part_copy(part)
+      def copy_part(object, part_number, multipart_upload)
+        response = client.upload_part_copy(
+          bucket:      multipart_upload.bucket_name,
+          key:         multipart_upload.object_key,
+          upload_id:   multipart_upload.id,
+          copy_source: [object.bucket_name, object.key].join("/"),
+          part_number: part_number,
+        )
 
-        { "part_number" => part[:part_number], "etag" => response.copy_part_result.etag }
+        { "part_number" => part_number, "etag" => response.copy_part_result.etag }
       end
 
       # Retuns an Aws::S3::Object with the prefix applied.
