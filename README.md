@@ -13,7 +13,7 @@ A Ruby server for the [tus resumable upload protocol]. It implements the core
 
 ```rb
 # Gemfile
-gem "tus-server", "~> 2.0"
+gem "tus-server", "~> 2.3"
 ```
 
 ## Usage
@@ -28,44 +28,41 @@ Rails.application.routes.draw do
 end
 ```
 
-Otherwise you can run it in `config.ru`:
-
-```rb
-# config.ru (Rack)
-require "tus/server"
-
-map "/files" do
-  run Tus::Server
-end
-```
-
 Now you can tell your tus client library (e.g. [tus-js-client]) to use this
 endpoint:
 
 ```js
 // using tus-js-client
 new tus.Upload(file, {
-  endpoint: "/files",
-  chunkSize: 5*1024*1024, // required unless using Falcon
+  endpoint: '/files',
+  chunkSize: 5*1024*1024, // chunking is required unless you're using Falcon
   // ...
+})
+
+// OR
+
+// using Uppy
+uppy.use(Uppy.Tus, {
+  endpoint: '/files',
+  chunkSize: 5*1024*1024, // chunking is required unless you're using Falcon
 })
 ```
 
 By default uploaded files will be stored in the `data/` directory. After the
 upload is complete, you'll probably want to attach the uploaded file to a
-database record. [Shrine] is currently the only file attachment library that
-provides an integration with tus-ruby-server, see [this walkthrough][shrine
-resumable walkthrough] that adds resumable uploads from scratch, and for a
-complete example you can check out the [demo app][shrine-tus-demo].
+database record. [Shrine] is a file attachment library that provides
+integration with tus-ruby-server, see [this walkthrough][shrine resumable
+walkthrough] that adds resumable uploads from scratch, and for a complete
+example you can check out the [demo app][shrine-tus-demo].
 
 ### Streaming web server
 
 Running the tus server alongside your main app using popular web servers like
-Puma or Unicorn is probably fine for most cases, however, it does come with a
-few gotchas. First, since these web servers don't accept partial requests
-(request where the request body hasn't been fully received), the tus client
-must be configured to split the upload into multiple requests. Second, since
-web workers are tied for the duration of the request, serving uploaded files
+Puma or Unicorn is probably fine for most cases, but it does come with a few
+gotchas. First, since these web servers don't accept partial requests (request
+where the request body hasn't been fully received), the tus client must be
+configured to split the upload into multiple requests. Second, since web
+workers are tied for the duration of the request, serving uploaded files
 through the tus server app could significantly impact request throughput; this
 can be avoided by having your frontend server (Nginx) serve the files if using
 `Filesystem` storage, or if you're using a cloud service like S3 having
