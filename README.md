@@ -69,9 +69,9 @@ can be avoided by having your frontend server (Nginx) serve the files if using
 download requests redirect to the service file URL.
 
 That being said, there is a ruby web server that addresses these limitations
-– [Falcon]. Falcon is part of the [`async` ecosystem][async], and it utilizes
-non-blocking IO to process requests and responses in a streaming fashion
-without tying up your web workers. This has several benefits for
+– **[Falcon]**. Falcon is part of the [`async` ecosystem][async], and it
+utilizes non-blocking IO to process requests and responses in a streaming
+fashion without tying up your web workers. This has several benefits for
 `tus-ruby-server`:
 
 * since tus server is called to handle the request as soon as the request
@@ -247,11 +247,10 @@ Be aware that the AWS S3 Multipart Upload API has the following limits:
 | Maximum object size                | 5 TB                                  |
 
 This means that if you're chunking uploads in your tus client, the chunk size
-needs to be **5 MB or larger**. Furthermore, if you're allowing your users to
-upload files larger than 50 GB, you will the minimum chunk size needs to be
-higher (`ceil(max_length, max_multipart_parts)`). Note that chunking is
-optional if you're running on Falcon, but it's mandatory if you're using Puma
-or another web server.
+needs to be **5 MB or larger**. If you're allowing your users to upload files
+larger than 50 GB, the minimum chunk size needs to be higher than 5 MB
+(`ceil(max_length, max_multipart_parts)`). Note that chunking is optional if
+you're running on [Falcon], but it's mandatory on Puma and other web servers.
 
 `Tus::Storage::S3` is relying on the above limits for determining the multipart
 part size. If you're using a different S3-compatible service which has different
