@@ -166,7 +166,7 @@ module Tus
             validate_content_length!(input.pos, info)
           end
 
-          info["Upload-Offset"] = (info.offset + bytes_uploaded).to_s
+          info["Upload-Offset"]  = (info.offset + bytes_uploaded).to_s
           info["Upload-Expires"] = (Time.now + expiration_time).httpdate
 
           if info.offset == info.length # last chunk
