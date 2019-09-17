@@ -496,7 +496,7 @@ expiration_time = Tus::Server.opts[:expiration_time]
 tus_storage     = Tus::Server.opts[:storage]
 expiration_date = Time.now.utc - expiration_time
 
-tus_storage.expire_files(expiration_time)
+tus_storage.expire_files(expiration_date)
 ```
 
 ## Download
