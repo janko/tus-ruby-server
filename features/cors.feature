@@ -10,7 +10,7 @@ Feature: CORS
       """
       Access-Control-Allow-Origin: tus-server.org
       Access-Control-Allow-Methods: POST, GET, HEAD, PATCH, DELETE, OPTIONS
-      Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Upload-Length, Upload-Offset, Tus-Resumable, Upload-Metadata, Upload-Defer-Length, Upload-Concat
+      Access-Control-Allow-Headers: Authorization, Origin, X-Requested-With, X-Request-ID, X-HTTP-Method-Override, Content-Type, Upload-Length, Upload-Offset, Tus-Resumable, Upload-Metadata, Upload-Defer-Length, Upload-Concat
       Access-Control-Max-Age: 86400
       """
 
