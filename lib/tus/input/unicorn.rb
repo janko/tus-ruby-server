@@ -8,8 +8,11 @@ module Tus
         super
       rescue => exception
         raise unless exception.class.name == "Unicorn::ClientShutdown"
-        outbuf = outbuf.to_s.clear
-        outbuf unless length
+
+        data   = outbuf.clear if outbuf
+        data ||= "".dup
+
+        data unless length
       end
     end
   end
