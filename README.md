@@ -210,6 +210,14 @@ a `:prefix` in the storage configuration.
 Tus::Storage::S3.new(prefix: "tus", **options)
 ```
 
+To set a subdirectory from the client side you can set `Sub-Prefix` in the HTTP headers. This can be in addition to the previous option or by its own.
+
+```js
+headers: {
+  'Sub-Prefix': 'images'
+}
+```
+
 You can also specify additional options that will be fowarded to
 [`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
 

@@ -91,6 +91,8 @@ module Tus
             "Upload-Expires"      => (Time.now + expiration_time).httpdate,
           )
 
+          storage.set_sub_prefix(request.headers['Sub-Prefix'])
+
           before_create(uid, info)
 
           if info.final?
@@ -396,7 +398,7 @@ module Tus
 
       if request.options?
         response.headers["Access-Control-Allow-Methods"] = "POST, GET, HEAD, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Origin, X-Requested-With, X-Request-ID, X-HTTP-Method-Override, Content-Type, Upload-Length, Upload-Offset, Tus-Resumable, Upload-Metadata, Upload-Defer-Length, Upload-Concat"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Origin, X-Requested-With, X-Request-ID, X-HTTP-Method-Override, Content-Type, Upload-Length, Upload-Offset, Tus-Resumable, Upload-Metadata, Upload-Defer-Length, Upload-Concat, Sub-Prefix"
         response.headers["Access-Control-Max-Age"]       = "86400"
       else
         response.headers["Access-Control-Expose-Headers"] = "Upload-Offset, Location, Upload-Length, Tus-Version, Tus-Resumable, Tus-Max-Size, Tus-Extension, Upload-Metadata, Upload-Defer-Length, Upload-Concat"

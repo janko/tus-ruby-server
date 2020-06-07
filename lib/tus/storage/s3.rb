@@ -220,6 +220,14 @@ module Tus
         bucket.client
       end
 
+      def set_sub_prefix(sub_prefix)
+        if prefix
+          @prefix = "#{prefix}/#{sub_prefix}"
+        else
+          @prefix = "#{sub_prefix}"
+        end
+      end
+
       private
 
       # Uploads given body as a new multipart part with the specified part
