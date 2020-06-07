@@ -210,7 +210,7 @@ a `:prefix` in the storage configuration.
 Tus::Storage::S3.new(prefix: "tus", **options)
 ```
 
-You can also specify additional options that will be fowarded to
+You can also specify additional options that will be forwarded to
 [`Aws::S3::Client#create_multipart_upload`] using `:upload_options`.
 
 ```rb
