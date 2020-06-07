@@ -50,7 +50,8 @@ module Tus
 
         options = {}
         options[:content_type] = tus_info.type if tus_info.type
-        options[:content_disposition] = ContentDisposition.inline(tus_info.name) if tus_info.name
+        options[:content_disposition] = ContentDisposition.(disposition: upload_options[:disposition] || "inline", filename: tus_info.name)
+        upload_options.delete(:disposition)
         options.merge!(upload_options)
 
         multipart_upload = object(uid).initiate_multipart_upload(options)
