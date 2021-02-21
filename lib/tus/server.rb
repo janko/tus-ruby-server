@@ -243,7 +243,7 @@ module Tus
       upload_length = request.headers["Upload-Length"]
 
       error!(400, "Missing Upload-Length header") if upload_length.to_s == ""
-      error!(400, "Invalid Upload-Length header") if upload_length =~ /\D/
+      error!(400, "Invalid Upload-Length header") if upload_length.to_s =~ /\D/
       error!(400, "Invalid Upload-Length header") if upload_length.to_i < 0
 
       if max_size && upload_length.to_i > max_size
