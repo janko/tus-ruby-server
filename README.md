@@ -524,6 +524,14 @@ can change it to "attachment" if you want the browser to always force download:
 Tus::Server.opts[:disposition] = "attachment"
 ```
 
+## Extension
+
+If you need the extension in the file name, you can set `:file_extension` to true, default is false.
+
+```rb
+Tus::Server.opts[:file_extension] = true
+```
+
 ## Checksum
 
 The following checksum algorithms are supported for the `checksum` extension:

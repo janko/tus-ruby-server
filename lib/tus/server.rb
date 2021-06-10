@@ -81,7 +81,6 @@ module Tus
           validate_upload_metadata! if request.headers["Upload-Metadata"]
           validate_upload_concat! if request.headers["Upload-Concat"]
 
-          uid  = SecureRandom.hex
           info = Tus::Info.new(
             "Upload-Length"       => request.headers["Upload-Length"],
             "Upload-Offset"       => "0",
@@ -90,6 +89,12 @@ module Tus
             "Upload-Concat"       => request.headers["Upload-Concat"],
             "Upload-Expires"      => (Time.now + expiration_time).httpdate,
           )
+
+          if opts[:file_extension]
+            uid  = "#{SecureRandom.hex}#{File.extname(info.name)}"
+          else
+            uid  = SecureRandom.hex
+          end
 
           before_create(uid, info)
 
